@@ -1,9 +1,9 @@
 # AudioCue-maven
-A Java audio-playback class, modeled on [javax.sound.sampled.Clip](https://docs.oracle.com/en/java/javase/17/docs/api/java.desktop/javax/sound/sampled/Clip.html), enhanced with concurrent playback and dynamic handling of volume, pan and frequency. Included is a mixer for merging multiple playing instances into a single audio out.
+*AudioCue* is a Java audio-playback class, modeled on [javax.sound.sampled.Clip](https://docs.oracle.com/en/java/javase/17/docs/api/java.desktop/javax/sound/sampled/Clip.html), enhanced with concurrent playback and dynamic handling of volume, pan and frequency. Included is a mixer for merging multiple playing instances into a single audio out.
 
-This project is a revision of [an earlier version of AudioCue](https://github.com/philfrei/AudioCue) from Gradle to Maven, with the goal of publishing via [Sonatype/Maven Central](https://search.maven.org/). *TODO: some steps remain prior to publication.*
+This project revises the build tool of [an earlier version of AudioCue](https://github.com/philfrei/AudioCue) from Gradle to Maven, with the goal of publishing via [Sonatype/Maven Central](https://search.maven.org/). *TODO: some steps remain prior to publication.*
 
-Until *AudioCue* is available at Maven Central, the recommended way to make use of the **AudioCue** class is to fork this project, then clone to a development environment. From there, you can execute Maven's *install* command, which will add the **.jar** to the local Maven repository. Or, you can directly make use of the **.jar** created in the **/target** subdirectory via the *package* command.
+Until *AudioCue* is available at Maven Central, the best way to make use of the **AudioCue** class is to fork this project, then clone to a development environment. From there, you can execute Maven's *install* command, which will add the **.jar** to the local Maven repository. Or, you can directly make use of the **.jar** created in the **/target** subdirectory via the *package* command by, for example, adding it to your project's classpath.
 
 To use *AudioCue* in a Maven project, add the following dependency to your project's POM file.
 
@@ -13,7 +13,7 @@ To use *AudioCue* in a Maven project, add the following dependency to your proje
       <version>1.0.0</version>
     </dependency>
     
-The API can be generated via the Javadoc tool. At this time, the API for this project and the earlier [Gradle-based AudioCue](https://github.com/philfrei/AudioCue) are identical. A public is available [here](http://adonax.com/AudioCue/api).
+The API can be generated via the Javadoc tool. At this time, the API for this project and the earlier [Gradle-based AudioCue](https://github.com/philfrei/AudioCue) are identical. This API can be viewed [here](http://adonax.com/AudioCue/api).
 
 ## Usage
 ### Basic playback (for "fire-and-forget" use)
