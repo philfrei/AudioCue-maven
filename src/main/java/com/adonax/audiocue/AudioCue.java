@@ -107,10 +107,10 @@ public class AudioCue implements AudioMixerTrack
 	public static final Info info =	
 			new DataLine.Info(SourceDataLine.class, audioFormat);
 	
-	private final int VOLUME_STEPS = 1024;
-	private final int SPEED_STEPS = 1024 * 4;
-	private final int PAN_STEPS = 1024;
-	private final int DEFAULT_BUFFER_FRAMES = 1024 ;
+	public static final int DEFAULT_BUFFER_FRAMES = 1024 ;
+	private final int VOLUME_STEPS = DEFAULT_BUFFER_FRAMES;
+	private final int SPEED_STEPS = DEFAULT_BUFFER_FRAMES * 4;
+	private final int PAN_STEPS = DEFAULT_BUFFER_FRAMES;
 	
 	private final LinkedBlockingDeque<AudioCueCursor> availables;
 	private final float[] cue;
@@ -213,8 +213,8 @@ public class AudioCue implements AudioMixerTrack
 		 * tapered via a linear function from 0 to 1. 
 		 */	
 		FULL_LINEAR(
-				x -> (1 + x) / 2,
-				x -> 1 - ((1 + x) / 2)
+				x -> 1 - ((1 + x) / 2),
+				x -> (1 + x) / 2
 				),
 		/**
 		 * Represents a panning function that uses
@@ -227,12 +227,12 @@ public class AudioCue implements AudioMixerTrack
 		 * function with values ranging from 0 to 1.
 		 */
 		CIRCULAR(
-				x -> (float)(Math.cos(Math.PI * (1 + x) / 4)),
-				x -> (float)(Math.sin(Math.PI * (1 + x) / 4))
+				x -> (float)(Math.cos(Math.PI * ((1 + x) / 4))),
+				x -> (float)(Math.sin(Math.PI * ((1 + x) / 4)))
 				);
 	
-		private final Function<Float, Float> left;
-		private final Function<Float, Float> right;
+		final Function<Float, Float> left;
+		final Function<Float, Float> right;
 	
 		PanType(Function<Float, Float> left, 
 				Function<Float, Float> right)
@@ -348,6 +348,11 @@ public class AudioCue implements AudioMixerTrack
 			cursors[i].resetInstance();
 			availables.add(cursors[i]);
 		}
+		
+		// default readBuffer (added here to help with
+		// testing--so we don't have to open() the cue to
+		// inspect the results of the readTrack() method.
+		readBuffer = new float[DEFAULT_BUFFER_FRAMES * 2];
 		
 		// default pan calculation function
 		setPanType(PanType.CENTER_LINEAR);
@@ -795,7 +800,7 @@ public class AudioCue implements AudioMixerTrack
 	/**
 	 * Repositions the play position ("play head") of the
 	 * given {@code AudioCue} instance to the sample frame that 
-	 * corresponds to the specified elapsed time in milliseconds. 
+	 * corresponds to the specified elapsed time in microseconds. 
 	 * The new play position can include a fractional sample 
 	 * amount. The new sample frame position will be clamped to
 	 * a value that lies within the {@code AudioCue}. When the 
@@ -804,14 +809,14 @@ public class AudioCue implements AudioMixerTrack
 	 * 
 	 * @param instanceHook an {@code int} used to identify an 
 	 * {@code AudioCue} instance
-	 * @param milliseconds an {@code int} in milliseconds that
+	 * @param microseconds an {@code int} in microseconds that
 	 * corresponds to the desired starting point for the 
 	 * {@code AudioCue} instance
 	 * @throws IllegalStateException if instance is not active
 	 * or if instance is playing
 	 */
-	public void setMillisecondPosition(int instanceHook, 
-			int milliseconds)
+	public void setMicrosecondPosition(int instanceHook, 
+			int microseconds)
 	{
 		if (!cursors[instanceHook].isActive || 
 				cursors[instanceHook].isPlaying)
@@ -820,10 +825,10 @@ public class AudioCue implements AudioMixerTrack
 					+ name + ", instance:" + instanceHook);
 		}
 
-		float samples = (audioFormat.getFrameRate() * milliseconds) 
-				/ 1000f;
+		float frames = (audioFormat.getFrameRate() * microseconds) 
+				/ 1000_000f;
 		cursors[instanceHook].idx = 
-				Math.max(0,	Math.min(cueFrameLength - 1, samples));
+				Math.max(0,	Math.min(cueFrameLength, frames));
 	};
 	
 	/**
@@ -852,7 +857,7 @@ public class AudioCue implements AudioMixerTrack
 					+ name + ", instance:" + instanceHook);
 		}
 		
-		cursors[instanceHook].idx = (float)((cueFrameLength - 1) * 
+		cursors[instanceHook].idx = (float)((cueFrameLength) * 
 				Math.max(0, Math.min(1, normal)));
 	};
 
@@ -1245,7 +1250,12 @@ public class AudioCue implements AudioMixerTrack
 		AudioCuePlayer(Mixer mixer, int bufferFrames) throws 
 			LineUnavailableException
 		{
+			// twice the frames length, because stereo
+			// NOTE: there is also a default instantiation 
+			// in the AudioCue constructor (to help with testing)
 			readBuffer = new float[bufferFrames * 2];
+			// SourceDataLine must be 4 * number of frames, to 
+			// account for 16-bit encoding and stereo.
 			sdlBufferSize = bufferFrames * 4;
 			audioBytes = new byte[sdlBufferSize];
 					
@@ -1314,7 +1324,12 @@ public class AudioCue implements AudioMixerTrack
 					
 					// get audioVals (with LERP for fractional idx)
 					float[] audioVals = new float[2];
-					audioVals = readFractionalFrame(audioVals, acc.idx);
+					if (acc.idx == (int)acc.idx) {
+						audioVals[0] = cue[(int)acc.idx * 2];
+						audioVals[1] = cue[((int)acc.idx * 2) + 1];
+					} else {
+						audioVals = readFractionalFrame(audioVals, acc.idx);
+					}
 					
 					readBuffer[i] += (audioVals[0] 
 							* acc.volume * panFactorL);
@@ -1333,7 +1348,7 @@ public class AudioCue implements AudioMixerTrack
 					acc.idx += acc.speed;
 					
 					// test for "eof" and "looping"
-					if (acc.idx >= (cueFrameLength - 1))
+					if (acc.idx > (cueFrameLength - 1))
 					{
 						// keep looping indefinitely
 						if (acc.loop == -1)
@@ -1358,6 +1373,9 @@ public class AudioCue implements AudioMixerTrack
 								availables.offerFirst(acc);
 								broadcastReleaseEvent(acc);
 							}
+							// cursor is at end of cue before
+							// readBuffer filled, no need to
+							// process further (default 0's)
 							break;
 						}
 					}
@@ -1428,7 +1446,7 @@ public class AudioCue implements AudioMixerTrack
 	}
 	
 	@Override  // AudioMixerTrack interface
-	public float[] readTrack() throws IOException 
+	public float[] readTrack()  
 	{
 		return fillBuffer(readBuffer);
 	}
