@@ -2,6 +2,8 @@ package com.adonax.audiocue;
 
 import java.util.function.Function;
 
+import javax.sound.sampled.LineUnavailableException;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -16,11 +18,6 @@ class AudioCueTest {
 	 * check output for static speed
 	 * check output when speed is changing dynamically
 	 */
-
-	// To cover float discrepancies. Why 6 digits? IDK.
-	// What is a good amount to use as a delta for today's computers?
-	float zeroDelta = (float)Math.pow(10, -6);
-	
 	
 	@Test
 	void testBasicProperties() {
@@ -118,11 +115,16 @@ class AudioCueTest {
 		int hook0 = testCue.play();
 		Assertions.assertEquals(1, testCue.getVolume(hook0));
 
-		// Volume changes incrementally while running, so
-		// since we aren't actually playing it, the volume
-		// change should not have taken effect.
+		// Volume changes incrementally while playing the cue.
+		// Since we aren't actually running the "playing" 
+		// methods, the change should not have taken effect.		
 		testCue.setVolume(hook0, 0.25);
 		Assertions.assertNotEquals(0.25, testCue.getVolume(hook0));
+		
+		testCue.stop(hook0);
+		testCue.setVolume(hook0, 0.75);
+		// isPlaying == false, so setVolume() should take immediate effect
+		Assertions.assertEquals(0.75, testCue.getVolume(hook0));
 		
 		// Play, with volume specified
 		int hook1 = testCue.play(0.5);
@@ -149,11 +151,16 @@ class AudioCueTest {
 		int hook0 = testCue.play();
 		Assertions.assertEquals(0, testCue.getPan(hook0));
 
-		// Pan changes incrementally while running, so
-		// since we aren't actually playing it, the pan
-		// change should not have taken effect.
+		// Pan changes incrementally while playing the cue.
+		// Since we aren't actually running the "playing" 
+		// methods, the change should not have taken effect.
 		testCue.setPan(hook0, 0.25);
 		Assertions.assertNotEquals(0.25, testCue.getPan(hook0));
+		
+		testCue.stop(hook0);
+		testCue.setPan(hook0, 0.75);
+		// isPlaying == false, so setPan() should take immediate effect
+		Assertions.assertEquals(0.75, testCue.getPan(hook0));
 		
 		// Play, with pan specified
 		int hook1 = testCue.play(1, -0.5, 1, 0);
@@ -176,13 +183,18 @@ class AudioCueTest {
 		int hook0 = testCue.play();
 		Assertions.assertEquals(1, testCue.getSpeed(hook0));
 
-		// Speed changes incrementally while running, so
-		// since we aren't actually playing it, the speed
-		// change should not have taken effect.
+		// Speed changes incrementally while playing the cue.
+		// Since we aren't actually running the "playing" 
+		// methods, the change should not have taken effect.
 		testCue.setSpeed(hook0, 2.5);
 		Assertions.assertNotEquals(2.5, testCue.getSpeed(hook0));
 		
-		// Play, with speed specified
+		testCue.stop(hook0);
+		testCue.setSpeed(hook0, 0.75);
+		// isPlaying == false, so setSpeed() should take immediate effect
+		Assertions.assertEquals(0.75, testCue.getSpeed(hook0));
+		
+		// play(), with speed specified
 		int hook1 = testCue.play(0.5, -0.5, 3, 0);
 		Assertions.assertEquals(3, testCue.getSpeed(hook1));
 
@@ -230,7 +242,7 @@ class AudioCueTest {
 	@Test
 	void testDynamicVolume() {
 		
-		float[] cueData = new float[AudioCue.DEFAULT_BUFFER_FRAMES * 2];
+		float[] cueData = new float[AudioCue.VOLUME_STEPS * 2];
 		int lastFrame = cueData.length - 2;
 		// Goal is to show the output volume goes from the initial
 		// val to the target volume over the course of VOLUME_STEPS
@@ -248,17 +260,21 @@ class AudioCueTest {
 		// Default play() method sets volume to initial value of 1f.
 		int hook = testCue.play();
 		// When playing, volume changes are spread out over AudioCue.VOLUME_STEPS.
-		testCue.setVolume(hook, 0.5);
+		double targetVolume = 0.5;
+		testCue.setVolume(hook, targetVolume);
+		// Set to loop so that instance does not recycle, so that we 
+		// can execute .getVolume() on instance at end of test.
+		testCue.setLooping(hook, -1);
 		
 		float[] testBuffer = testCue.readTrack();
 		
 		for (int i = 0, n = testBuffer.length - 2; i < n; i+=2) {
-//			System.out.println("i:" + i + "\tval:" + testBuffer[i] + "\tcue:" + cueData[i]);
 			// The PCM out values should progressively diminish as the progressively lowers. 
 			Assertions.assertTrue(cueData[i] - testBuffer[i] < cueData[i + 2] - testBuffer[i + 2]);
 		}
-//		System.out.println("i:" + lastFrame + "\tval:" + testBuffer[lastFrame] + "\tcue:" + cueData[lastFrame]);				
-		Assertions.assertEquals(cueData[lastFrame], testBuffer[lastFrame] * 2);
+		
+		Assertions.assertEquals(targetVolume, testCue.getVolume(hook));		
+		Assertions.assertEquals(cueData[lastFrame] * targetVolume, testBuffer[lastFrame]);
 	}
 
 	@Test
@@ -268,17 +284,19 @@ class AudioCueTest {
 		Function<Float, Float> panL = panType.left;
 		Function<Float, Float> panR = panType.right;
 		
-//		// Test to within 6 decimals (covers float discrepancies) Why 6? IDK
-//		// What is a good amount to use as a delta for today's computers?
-//		float zeroDelta = (float)Math.pow(10, -6);
+		// Test to within 6 decimals (covers float discrepancies) 
+		// Why 6? IDK. What is a good amount to use for today's computers?
+		float zeroDelta = (float)Math.pow(10, -6);
 		
+		// TODO: test some intermediate values, not just the
+		// end points, e.g., -0.5, 0.5, where formulas have to 
+		// perform calculations that might introduce error.
 		float panVal = -1f;
 		float expectedLeft = 1;
 		float expectedRight = 0;
 		float volL = panL.apply(panVal);
-		float volR = panR.apply(panVal);		
-//		System.out.println("PanType:" + panType + "\tPanVal:" + panVal 
-//				+ "\tVolFactors [" + volL + ", " + volR + "]");
+		float volR = panR.apply(panVal);
+
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 		
@@ -287,8 +305,6 @@ class AudioCueTest {
 		expectedRight = 0.5f;
 		volL = panL.apply(panVal);
 		volR = panR.apply(panVal);
-//		System.out.println("PanType:" + panType + "\tPanVal:" + panVal 
-//				+ "\tVolFactors [" + volL + ", " + volR + "]");
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 		
@@ -297,8 +313,6 @@ class AudioCueTest {
 		expectedRight = 1;
 		volL = panL.apply(panVal);
 		volR = panR.apply(panVal);
-//		System.out.println("PanType:" + panType + "\tPanVal:" + panVal 
-//				+ "\tVolFactors [" + volL + ", " + volR + "]");
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 		
@@ -311,8 +325,6 @@ class AudioCueTest {
 		expectedRight = 0;
 		volL = panL.apply(panVal);
 		volR = panR.apply(panVal);		
-//		System.out.println("\nPanType:" + panType + "\tPanVal:" + panVal 
-//				+ "\tVolFactors [" + volL + ", " + volR + "]");
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 		
@@ -321,8 +333,6 @@ class AudioCueTest {
 		expectedRight = 1;
 		volL = panL.apply(panVal);
 		volR = panR.apply(panVal);
-//		System.out.println("PanType:" + panType + "\tPanVal:" + panVal 
-//				+ "\tVolFactors [" + volL + ", " + volR + "]");
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 		
@@ -331,8 +341,6 @@ class AudioCueTest {
 		expectedRight = 1;
 		volL = panL.apply(panVal);
 		volR = panR.apply(panVal);
-//		System.out.println("PanType:" + panType + "\tPanVal:" + panVal 
-//				+ "\tVolFactors [" + volL + ", " + volR + "]");
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 
@@ -345,8 +353,6 @@ class AudioCueTest {
 		expectedRight = 0;
 		volL = panL.apply(panVal);
 		volR = panR.apply(panVal);		
-//		System.out.println("\nPanType:" + panType + "\tPanVal:" + panVal 
-//				+ "\tVolFactors [" + volL + ", " + volR + "]");
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 		
@@ -355,8 +361,6 @@ class AudioCueTest {
 		expectedRight = (float)Math.sin(Math.PI * 0.25);
 		volL = panL.apply(panVal);
 		volR = panR.apply(panVal);
-//		System.out.println("PanType:" + panType + "\tPanVal:" + panVal 
-//				+ "\tVolFactors [" + volL + ", " + volR + "]");
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 		
@@ -365,59 +369,53 @@ class AudioCueTest {
 		expectedRight = 1;
 		volL = panL.apply(panVal);
 		volR = panR.apply(panVal);
-//		System.out.println("PanType:" + panType + "\tPanVal:" + panVal 
-//				+ "\tVolFactors [" + volL + ", " + volR + "]");
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 	}
-
+	
 	@Test
 	void testPanOutput() {
 		// PCM data for test cue.
 		int cueLength = 10;
-		float[] cueData = new float[cueLength];	
+		float[] cueData = new float[cueLength];
+		// PCM data ranges from -1 to 0 (left), 1 to 0 (right)
 		for(int i = 0; i < cueLength; i += 2) {
 			cueData[i] = 1 - (i / (float)(cueData.length - 2));
 			cueData[i + 1] = -1 + i/(float)(cueData.length - 2);
 		}
-//		for (int i = 0; i < cueLength; i+=2) {
-//			System.out.println("cue:[" + cueData[i] + ", " + cueData[i+1] + "]");
-//		}
 
+		// Test to within 6 decimals (covers float discrepancies) 
+		// Why 6? IDK. What is a good amount to use for today's computers?
+		float zeroDelta = (float)Math.pow(10, -6);		
+		
 		// Set up AudioCue and instance
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
 		int hook = testCue.obtainInstance();
 		testCue.setVolume(hook, 1);
-		
+
 		// Tests for FULL_LINEAR type pan.
 		testCue.setPanType(AudioCue.PanType.FULL_LINEAR);
-//		System.out.println("\nPan:" + AudioCue.PanType.FULL_LINEAR);
 
 		// Pan = -1 (full left)
 		float panVal = -1;
 		testCue.setPan(hook, panVal);
 		testCue.start(hook);
-		
+
 		float[] testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
-//			System.out.println("pan = " + panVal + "\ti:" + i + "\t  cue:[" + cueData[i] + ", " + cueData[i+1] + "]"
-//					+ "\tresult:[" + testBuffer[i] + ", " + testBuffer[i+1] + "]");
 			Assertions.assertEquals(cueData[i], testBuffer[i], zeroDelta);
 			Assertions.assertEquals(0, testBuffer[i + 1], zeroDelta);
 		}
-		
+
 		// Pan = 0 (center)
 		testCue.stop(hook);
 		testCue.setFramePosition(hook, 0);
 		panVal = 0;
 		testCue.setPan(hook, panVal);
 		testCue.start(hook);
-		
+
 		testBuffer = testCue.readTrack();
-//		System.out.println();
 		for (int i = 0; i < cueLength; i+=2) {
-//			System.out.println("pan = " + panVal + "\ti:" + i + "\t  cue:[" + cueData[i] + ", " + cueData[i+1] + "]"
-//					+ "\tresult:[" + testBuffer[i] + ", " + testBuffer[i+1] + "]");
 			Assertions.assertEquals(cueData[i] / 2, testBuffer[i], zeroDelta);
 			Assertions.assertEquals(cueData[i + 1] / 2, testBuffer[i + 1], zeroDelta);
 		}
@@ -428,19 +426,15 @@ class AudioCueTest {
 		panVal = 1;
 		testCue.setPan(hook, panVal);
 		testCue.start(hook);
-		
+
 		testBuffer = testCue.readTrack();
-//		System.out.println();
 		for (int i = 0; i < cueLength; i+=2) {
-//			System.out.println("pan = " + panVal + "\ti:" + i + "\t  cue:[" + cueData[i] + ", " + cueData[i+1] + "]"
-//					+ "\tresult:[" + testBuffer[i] + ", " + testBuffer[i+1] + "]");
 			Assertions.assertEquals(0, testBuffer[i], zeroDelta);
 			Assertions.assertEquals(cueData[i + 1], testBuffer[i + 1], zeroDelta);
 		}
 
 		/////////////////////////////////////////////////////////////////////////
 		testCue.setPanType(AudioCue.PanType.CENTER_LINEAR);
-//		System.out.println("\nPan:" + AudioCue.PanType.CENTER_LINEAR);
 
 		// Pan = -1 (full left)
 		testCue.stop(hook);
@@ -451,8 +445,6 @@ class AudioCueTest {
 		
 		testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
-//			System.out.println("pan = " + panVal + "\ti:" + i + "\t  cue:[" + cueData[i] + ", " + cueData[i+1] + "]"
-//					+ "\tresult:[" + testBuffer[i] + ", " + testBuffer[i+1] + "]");
 			Assertions.assertEquals(cueData[i], testBuffer[i], zeroDelta);
 			Assertions.assertEquals(0, testBuffer[i + 1], zeroDelta);
 		}
@@ -465,10 +457,7 @@ class AudioCueTest {
 		testCue.start(hook);
 		
 		testBuffer = testCue.readTrack();
-//		System.out.println();
 		for (int i = 0; i < cueLength; i+=2) {
-//			System.out.println("pan = " + panVal + "\ti:" + i + "\t  cue:[" + cueData[i] + ", " + cueData[i+1] + "]"
-//					+ "\tresult:[" + testBuffer[i] + ", " + testBuffer[i+1] + "]");
 			Assertions.assertEquals(cueData[i], testBuffer[i], zeroDelta);
 			Assertions.assertEquals(cueData[i + 1], testBuffer[i + 1], zeroDelta);
 		}
@@ -481,17 +470,13 @@ class AudioCueTest {
 		testCue.start(hook);
 		
 		testBuffer = testCue.readTrack();
-//		System.out.println();
 		for (int i = 0; i < cueLength; i+=2) {
-//			System.out.println("pan = " + panVal + "\ti:" + i + "\t  cue:[" + cueData[i] + ", " + cueData[i+1] + "]"
-//					+ "\tresult:[" + testBuffer[i] + ", " + testBuffer[i+1] + "]");
 			Assertions.assertEquals(0, testBuffer[i], zeroDelta);
 			Assertions.assertEquals(cueData[i + 1], testBuffer[i + 1], zeroDelta);
 		}
 		
 		/////////////////////////////////////////////////////////////////////////
 		testCue.setPanType(AudioCue.PanType.CIRCULAR);
-//		System.out.println("\nPan:" + AudioCue.PanType.CIRCULAR);
 
 		// Pan = -1 (full left)
 		testCue.stop(hook);
@@ -502,8 +487,6 @@ class AudioCueTest {
 		
 		testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
-//			System.out.println("pan = " + panVal + "\ti:" + i + "\t  cue:[" + cueData[i] + ", " + cueData[i+1] + "]"
-//					+ "\tresult:[" + testBuffer[i] + ", " + testBuffer[i+1] + "]");
 			Assertions.assertEquals(cueData[i], testBuffer[i], zeroDelta);
 			Assertions.assertEquals(0, testBuffer[i + 1], zeroDelta);
 		}
@@ -516,10 +499,7 @@ class AudioCueTest {
 		testCue.start(hook);
 		
 		testBuffer = testCue.readTrack();
-//		System.out.println();
 		for (int i = 0; i < cueLength; i+=2) {
-//			System.out.println("pan = " + panVal + "\ti:" + i + "\t  cue:[" + cueData[i] + ", " + cueData[i+1] + "]"
-//					+ "\tresult:[" + testBuffer[i] + ", " + testBuffer[i+1] + "]");
 			Assertions.assertEquals(cueData[i] * Math.cos(Math.PI * 0.25), testBuffer[i], zeroDelta);
 			Assertions.assertEquals(cueData[i + 1] * Math.sin(Math.PI * 0.25), testBuffer[i + 1], zeroDelta);
 		}
@@ -532,22 +512,18 @@ class AudioCueTest {
 		testCue.start(hook);
 		
 		testBuffer = testCue.readTrack();
-//		System.out.println();
 		for (int i = 0; i < cueLength; i+=2) {
-//			System.out.println("pan = " + panVal + "\ti:" + i + "\t  cue:[" + cueData[i] + ", " + cueData[i+1] + "]"
-//					+ "\tresult:[" + testBuffer[i] + ", " + testBuffer[i+1] + "]");
 			Assertions.assertEquals(0, testBuffer[i], zeroDelta);
 			Assertions.assertEquals(cueData[i + 1], testBuffer[i + 1], zeroDelta);
 		}		
 	}
 	
-	
 	@Test
 	void testDynamicPan() {
-		float[] cueData = new float[AudioCue.DEFAULT_BUFFER_FRAMES * 2];
+		float[] cueData = new float[AudioCue.PAN_STEPS * 2];
 		// PCM test data is given an unchanging value so the output
-		// should just reflect the change in the pan.
-		for(int i = 0; i < AudioCue.DEFAULT_BUFFER_FRAMES; i++) {
+		// should just show changes due to the changing pan.
+		for(int i = 0; i < AudioCue.PAN_STEPS; i++) {
 			int frame = i * 2;
 			cueData[frame] = 1f;  		// left channel
 			cueData[frame + 1] = -1f;  	// right channel
@@ -559,16 +535,14 @@ class AudioCueTest {
 		testCue.setVolume(hook, 1);
 		testCue.setPan(hook, -1);
 		testCue.start(hook);
-		// Because we are in a playing state, the change from -1 to 1 
-		// should be spread out over AudioCue.PAN_STEPS
+		// In playing state, the change from -1 to 1 
+		// should be incrementally spread across AudioCue.PAN_STEPS
 		testCue.setPan(hook, 1);		
 		
 		float[] testBuffer = testCue.readTrack();
-		int secondToLastFrame = AudioCue.DEFAULT_BUFFER_FRAMES - 1;
+		int secondToLastFrame = AudioCue.PAN_STEPS - 1;
 		for (int i = 0; i < secondToLastFrame; i++) {
 			int cueIdx = i * 2;
-//			System.out.println(" frame:" + i + "\tcue:[" + cueData[cueIdx] + ", " + cueData[cueIdx + 1] + "]"
-//					+ "\tresult:[" + testBuffer[cueIdx] + ", " + testBuffer[cueIdx + 1] + "]");
 			// left track values should go from 1 to 0 as pan transitions from -1 to 1
 			Assertions.assertTrue(
 					cueData[cueIdx] - testBuffer[cueIdx] < cueData[cueIdx + 2] - testBuffer[cueIdx + 2]);
@@ -576,12 +550,8 @@ class AudioCueTest {
 			Assertions.assertTrue(
 					cueData[cueIdx + 1] - testBuffer[cueIdx + 1] > cueData[cueIdx + 3] - testBuffer[cueIdx]);
 		}
-		int lastCueFrameIdx =  (AudioCue.DEFAULT_BUFFER_FRAMES - 1) * 2;
-//		System.out.println(" frame:" + secondToLastFrame 
-//				+ "\tcue:[" + cueData[lastCueFrameIdx] + ", " 
-//				+ cueData[lastCueFrameIdx + 1] + "]"
-//				+ "\tresult:[" + testBuffer[lastCueFrameIdx] + ", " 
-//				+ testBuffer[lastCueFrameIdx + 1] + "]");
+		int lastCueFrameIdx =  (AudioCue.PAN_STEPS - 1) * 2;
+		Assertions.assertEquals(1, testCue.getPan(hook));
 		Assertions.assertEquals(0, testBuffer[lastCueFrameIdx]);
 		Assertions.assertEquals(-1, testBuffer[lastCueFrameIdx + 1]);	
 	}
@@ -589,9 +559,10 @@ class AudioCueTest {
 	@Test 
 	void testSpeedOutput() {
 		/*
-		 * For the test data, let's create PCM that goes from 0 to the 
-		 * readBuffer length by increments of 0.0001. This will make it easier
-		 * to see if the interpolation is working correctly.
+		 * For the test data, using PCM that goes up from 0
+		 * by increments of 0.0001. This will make it easier
+		 * to see if the LERP is working correctly on non-integer
+		 * frame positions.
 		 */
 		float[] cueData = new float[AudioCue.DEFAULT_BUFFER_FRAMES * 2];
 		for(int i = 0; i < AudioCue.DEFAULT_BUFFER_FRAMES; i++) {
@@ -606,45 +577,85 @@ class AudioCueTest {
 		int hook = testCue.obtainInstance();
 		testCue.setVolume(hook, 1);
 		testCue.setPan(hook, 0);
-		testCue.start(hook);
-		
-		float[] testBuffer = testCue.readTrack();
-		
-		// This merely shows that the output data from readTrack() matches the PCM.
-		for (int i = 0; i < AudioCue.DEFAULT_BUFFER_FRAMES; i++) {
-			int idx = i * 2;
-			System.out.println(
-					"frame:" + i + "\tcue:[" + cueData[idx] + ",      \t" + cueData[idx + 1] + "]   "
-					+ "\tresult:[" + testBuffer[idx] + ",   \t" + testBuffer[idx + 1] + "]");
-		}
-		
-		testCue.setFramePosition(hook, 0);
+
+		// testing 3/4 speed
 		float testSpeed = 0.75f;
 		testCue.setSpeed(hook, testSpeed);
 		testCue.start(hook);
-		// testing 3/4 speed
-		testBuffer = testCue.readTrack();
+		float[] testBuffer = testCue.readTrack();
 		
-		// Check the current position is at expected
+		// Check the current cursor position is at expected
 		Assertions.assertEquals(testSpeed * AudioCue.DEFAULT_BUFFER_FRAMES, testCue.getFramePosition(hook));
 		
-		// Calculate the expected value after 5 steps taken.
-		float cursor5 = testSpeed * 5;
-		int cueIndex = (int)cursor5 * 2;
+		// Calculate the expected value after 5 steps taken (i.e., after 5th frame output).
+		int testSteps = 5;
+
+		// Test to within 6 decimals (covers float discrepancies) 
+		// Why 6? IDK. What is a good amount to use for today's computers?
+		float zeroDelta = (float)Math.pow(10, -6);	
+		float testCursor = testSpeed * testSteps;
 		// LERP formula calculation
-		float expectedVal = cueData[cueIndex + 2] * (cursor5 - (int)cursor5) 
-				+ cueData[cueIndex] * (((int)cursor5 + 1) - cursor5);
+		int byteIdx = (int)testCursor * 2;
+		float expectedVal = cueData[byteIdx + 2] * (testCursor - (int)testCursor) 
+				+ cueData[byteIdx] * (((int)testCursor + 1) - testCursor);
 		
-		Assertions.assertEquals(expectedVal, testBuffer[5 * 2], zeroDelta);
-		
-//		for (int i = 0; i < AudioCue.DEFAULT_BUFFER_FRAMES; i++) {
-//			int idx = i * 2;
-//			System.out.println(
-//					"frame:" + i + "\tcue:[" + cueData[idx] + ",      \t" + cueData[idx + 1] + "]   "
-//					+ "\tresult:[" + testBuffer[idx] + ",   \t" + testBuffer[idx + 1] + "]");
-//		}		
-//		System.out.println("cursor Location:" + testCue.getFramePosition(hook));
+		Assertions.assertEquals(expectedVal, testBuffer[testSteps * 2], zeroDelta);
 	}
 	
+	@Test
+	void testDynamicSpeed() {
+
+		float[] cueData = new float[AudioCue.SPEED_STEPS * 2];
+		for(int i = 0; i < AudioCue.SPEED_STEPS; i++) {
+			cueData[i * 2] = i;
+			cueData[i * 2 + 1] = cueData[i * 2];
+		}
+		
+		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
+		// With CENTER_LINEAR, default pan 0 leaves both L & R values as is.
+		testCue.setPanType(PanType.CENTER_LINEAR);
+		
+		int hook = testCue.obtainInstance();
+		testCue.setVolume(hook, 1);
+		testCue.setPan(hook, 0);
+		testCue.setLooping(hook, -1);
+		
+		// The following maneuver is used to set a smaller buffer size, giving us more 
+		// opportunities to check the contents of the AudioCueCursor.
+		try {
+			testCue.open(AudioCue.DEFAULT_BUFFER_FRAMES / 16);
+			testCue.close();
+		} catch (IllegalStateException | LineUnavailableException e) {
+			e.printStackTrace();
+		}
+		
+		testCue.start(hook);
+		
+		// Default speed is 1.
+		// By setting a new speed after cue has started
+		// the speed change will be handled incrementally.
+		testCue.setSpeed(hook, 0.5);
+	
+		float[] testBuffer;
+		
+		double startSpeed = 1;
+		double targetSpeed = 0.5;
+		double oneIncrement = (targetSpeed - startSpeed) / AudioCue.SPEED_STEPS;
+		
+		int elapsedFrames = 0;
+		do {
+			testBuffer = testCue.readTrack();
+			elapsedFrames += testBuffer.length / 2;
+			if (elapsedFrames > AudioCue.SPEED_STEPS) break;
+			
+			// Calculate the expected position of the AudioCueCursor.
+			double currFrame = elapsedFrames * startSpeed  + 
+					(((elapsedFrames + 1) * elapsedFrames * oneIncrement) / 2.0) ;
+			float zeroDelta = (float)Math.pow(10, -6);	
+			Assertions.assertEquals(currFrame, testCue.getFramePosition(hook), zeroDelta);
+			
+		} while (true);
+		Assertions.assertEquals(targetSpeed, testCue.getSpeed(hook));
+	}	
 	
 }

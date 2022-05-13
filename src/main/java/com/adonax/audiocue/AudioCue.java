@@ -108,9 +108,9 @@ public class AudioCue implements AudioMixerTrack
 			new DataLine.Info(SourceDataLine.class, audioFormat);
 	
 	public static final int DEFAULT_BUFFER_FRAMES = 1024 ;
-	private final int VOLUME_STEPS = DEFAULT_BUFFER_FRAMES;
-	private final int SPEED_STEPS = DEFAULT_BUFFER_FRAMES * 4;
-	private final int PAN_STEPS = DEFAULT_BUFFER_FRAMES;
+	public static final int VOLUME_STEPS = 1024;
+	public static final int SPEED_STEPS = 4096;
+	public static final int PAN_STEPS = 1024;
 	
 	private final LinkedBlockingDeque<AudioCueCursor> availables;
 	private final float[] cue;
@@ -338,8 +338,7 @@ public class AudioCue implements AudioMixerTrack
 		this.polyphony = polyphony;
 		this.name = name;
 		
-		availables = 
-				new LinkedBlockingDeque<AudioCueCursor>(polyphony);
+		availables = new LinkedBlockingDeque<AudioCueCursor>(polyphony);
 		cursors = new AudioCueCursor[polyphony];
 		
 		for (int i = 0; i < polyphony; i++)
@@ -1040,7 +1039,7 @@ public class AudioCue implements AudioMixerTrack
 		}
 
 		cursors[instanceHook].targetSpeed = 
-				(float)Math.min(8, Math.max(0.125, speed));
+				Math.min(8, Math.max(0.125, speed));
 		if (cursors[instanceHook].isPlaying)
 		{
 			cursors[instanceHook].targetSpeedIncr = 
@@ -1050,7 +1049,7 @@ public class AudioCue implements AudioMixerTrack
 		}
 		else
 		{
-			cursors[instanceHook].speed = 
+			cursors[instanceHook].speed = (float)
 					cursors[instanceHook].targetSpeed;
 		}
 	};
@@ -1191,15 +1190,15 @@ public class AudioCue implements AudioMixerTrack
 		volatile boolean isActive;
 		final int hook;
 		
-		float idx;
-		float speed;
+		double idx;
+		double speed;
 		float volume;
 		float pan;
 		int loop;
 		boolean recycleWhenDone;
 
-		float targetSpeed;
-		float targetSpeedIncr;
+		double targetSpeed;
+		double targetSpeedIncr;
 		int targetSpeedSteps;
 		
 		float targetVolume;
@@ -1312,12 +1311,20 @@ public class AudioCue implements AudioMixerTrack
 					if (acc.targetVolumeSteps-- > 0)
 					{
 						acc.volume += acc.targetVolumeIncr;
+						if (acc.targetVolumeSteps == 0) {
+							acc.volume = acc.targetVolume;
+						}
 					}
 					
 					// adjust pan if needed
 					if (acc.targetPanSteps-- > 0)
 					{
-						acc.pan += acc.targetPanIncr;
+						if (acc.targetPanSteps != 0) {
+							acc.pan += acc.targetPanIncr;
+						} else { 
+							acc.pan = acc.targetPan;
+						}
+						
 						panFactorL = panL.apply(acc.pan);
 						panFactorR = panR.apply(acc.pan);
 					}
@@ -1340,8 +1347,9 @@ public class AudioCue implements AudioMixerTrack
 					// adjust pitch if needed
 					if (acc.targetSpeedSteps-- > 0)
 					{
-						acc.speed += 
-								acc.targetSpeedIncr;
+//						acc.speed = acc.targetSpeed  
+//								- acc.targetSpeedIncr * acc.targetSpeedSteps;
+						acc.speed += acc.targetSpeedIncr;
 					}
 	
 					// set NEXT read position
@@ -1387,16 +1395,16 @@ public class AudioCue implements AudioMixerTrack
 	
 	// Audio thread code, gets single stereo Frame pairs.
 	// Due to variable pitch, requires LERP between frames.
-	private float[] readFractionalFrame(float[] audioVals, float idx)
+	private float[] readFractionalFrame(float[] audioVals, double idx)
 	{
 		final int intIndex = (int) idx;
 		final int flatIndex = intIndex * 2;
 		
-		audioVals[0] = cue[flatIndex + 2] * (idx - intIndex) 
-				+ cue[flatIndex] * ((intIndex + 1) - idx);
+		audioVals[0] = (float)(cue[flatIndex + 2] * (idx - intIndex) 
+				+ cue[flatIndex] * ((intIndex + 1) - idx));
 		
-		audioVals[1] = cue[flatIndex + 3] * (idx - intIndex) 
-				+ cue[flatIndex + 1] * ((intIndex + 1) - idx);
+		audioVals[1] = (float)(cue[flatIndex + 3] * (idx - intIndex) 
+				+ cue[flatIndex + 1] * ((intIndex + 1) - idx));
 
 		return audioVals;
 	}
