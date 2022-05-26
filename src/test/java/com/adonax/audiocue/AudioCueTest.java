@@ -10,14 +10,6 @@ import org.junit.jupiter.api.Test;
 import com.adonax.audiocue.AudioCue.PanType;
 
 class AudioCueTest {
-
-	/*
-	 * TODO still
-	 * check output when pan is changing dynamically (for all pans?)
-	 * 
-	 * check output for static speed
-	 * check output when speed is changing dynamically
-	 */
 	
 	@Test
 	void testBasicProperties() {
