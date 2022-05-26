@@ -23,7 +23,7 @@ import javax.sound.sampled.SourceDataLine;
  * to guard against volume overflows.
  * 
  * @author Philip Freihofner
- * @version AudioCue 1.2
+ * @version AudioCue 1.0
  * @see http://adonax.com/AudioCue
  */
 public class AudioMixer 
@@ -38,7 +38,7 @@ public class AudioMixer
 	 * 
 	 * @return integer number of tracks being mixed.
 	 */
-	public int getTrackLength() {return trackCount;}
+	public int getTrackCount() {return trackCount;}
 	
 	public final int bufferSize, sdlByteBufferSize, 
 			readBufferSize;
