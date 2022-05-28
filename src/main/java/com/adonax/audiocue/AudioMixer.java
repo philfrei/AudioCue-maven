@@ -38,7 +38,7 @@ public class AudioMixer
 	 * 
 	 * @return integer number of tracks being mixed.
 	 */
-	public int getTrackCount() {return trackCount;}
+	public int getTracksCount() {return trackCount;}
 	
 	public final int bufferSize, sdlByteBufferSize, 
 			readBufferSize;
