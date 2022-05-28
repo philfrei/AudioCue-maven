@@ -1,5 +1,6 @@
 # AudioCue-maven
-*AudioCue* is a Java audio-playback class, modeled on [javax.sound.sampled.Clip](https://docs.oracle.com/en/java/javase/17/docs/api/java.desktop/javax/sound/sampled/Clip.html), enhanced with concurrent playback and the dynamic handling of volume, pan and frequency. 
+*AudioCue* is a Java audio-playback class, modeled on [javax.sound.sampled.Clip](https://docs.oracle.com/en/java/javase/17/docs/api/java.desktop/javax/sound/sampled/Clip.html), 
+enhanced with concurrent playback and with dynamic handling of volume, pan and frequency. 
 Included is a mixer that can be optionally used to merge the output of multiple *AudioCues* into a single line out.
 
 This project changes the build tool of [an earlier version of AudioCue](https://github.com/philfrei/AudioCue) from *Gradle* to *Maven*. 
@@ -22,7 +23,8 @@ To use *AudioCue* in a Maven project, add the following dependency to your proje
     </dependency>
     
 The API can be generated via the Javadoc tool. At this time, the API for this project and the earlier [Gradle-based AudioCue](https://github.com/philfrei/AudioCue) are close to identical,
-with the only divergence being that AudioCueMixer*.getTrackLength()* method has been renamed *.getTracksCount()*. 
+with the only divergence being that the *AudioCueMixer* **.getTrackLength()** method has been renamed 
+**.getTracksCount()**. 
 This API can be viewed [here](http://adonax.com/AudioCue/api). 
 *TODO: generate a new Javadoc API.*
 
@@ -33,9 +35,10 @@ This API can be viewed [here](http://adonax.com/AudioCue/api).
     AudioCue myAudioCue; 
 
     // Recommended: preload one time only
-    // -- this example assumes "myAudio.wav" is located in src/main/resources folder    
+    // This example assumes "myAudio.wav" is located in src/main/resources folder
+    // of a Maven project    
     URL url = this.getClass().getResource("/myAudio.wav");
-    // -- this example allows up to 4 concurrent playbacks
+    // This example allows up to 4 concurrent playbacks
     AudioCue myAudioCue = AudioCue.makeStereoCue(url, 4); 
     myAudioCue.open();
     // end of preloading steps
@@ -96,18 +99,18 @@ Properties that can be altered for an instance include the following:
                                       // to 1 (full right)
     //*speed of playback*: 
     myAudioCue.setSpeed(handle, value); // value is a factor that is  
-                      // multiplied against the normal playback rate, e.g.,
-                      // 2 will double playback speed, 0.5 will halve it 
+                                        // multiplied against the normal playback rate, e.g.,
+                                        // 2 will double playback speed, 0.5 will halve it 
     //*position* (cannot be changed while instance is playing):
     myAudioCue.setFramePosition(handle, value);  // position in frames
     myAudioCue.setMillisecondPosition(handle, value); // position in milliseconds
     myAudioCue.setsetFractionalPosition(handle, value); 
-    				  // value is a decimal fraction of the cue length
-    				  // where 0 = start, 1 = end
+                                        // value is a decimal fraction of the cue length
+                                        // where 0 = start, 1 = end
     //*other*:                                                
     myAudioCue.setRecyleWhenDone(handle, value); // boolean
     myAudioCue.setLooping(handle, value); // number of additional times the cue will replay
-    									// -1 = infinite looping
+                                          // -1 = infinite looping
 
 ### Usage: output configuration
 
@@ -135,11 +138,8 @@ streams. But if desired, the streams can be merged into a single output line usi
     myAudioCue.open(myAudioMixer);
     
 Internally, this method adds the `AudioCue` to the `AudioMixer` using the interface 
-*AudioMixerTrack*. (NOTE: any audio source that can be set to provide stereo PCM in
-the form of normalized signed floats can implement this interface and be included
-in the mixing process.) 
-If an `AudioCue` is a track on an `AudioMixer`, the *AudioCue* method **close()** will 
-automatically remove the track from the `AudioMixer`.
+*AudioMixerTrack*. If an `AudioCue` is a track on an `AudioMixer`, the *AudioCue* 
+method **close()** will automatically remove the track from the `AudioMixer`.
 
     myAudioCue.close();
 
