@@ -27,14 +27,18 @@ class AudioCueTest {
 		float[] pcmData = new float[44100];
 		AudioCue testCue = AudioCue.makeStereoCue(pcmData, "testCue", 2);
 		
-		int hook0 = testCue.obtainInstance();
-		int hook1 = testCue.obtainInstance();
-		int hook2 = testCue.obtainInstance();
+		int instance0 = testCue.obtainInstance();
+		int instance1 = testCue.obtainInstance();
+		int instance2 = testCue.obtainInstance();
 		
-		Assertions.assertTrue(hook0 >= 0 && hook0 < 2);
-		Assertions.assertTrue(hook1 >= 0 && hook1 < 2);
-		Assertions.assertEquals(-1, hook2);		
+		// Are instance IDs in the expected range?
+		Assertions.assertTrue(instance0 >= 0 && instance0 < 2);
+		Assertions.assertTrue(instance1 >= 0 && instance1 < 2);
+		// At this point there should not be any instances available.
+		Assertions.assertEquals(-1, instance2);
 	}
+	
+	// @TODO test state logic (active, running)
 	
 	@Test
 	void testCursorPositioning() {
@@ -42,59 +46,59 @@ class AudioCueTest {
 		float[] pcmData = new float[88200]; 
 		AudioCue testCue = AudioCue.makeStereoCue(pcmData, "testCue", 2);
 		
-		int hook0 = testCue.obtainInstance();
+		int instance0 = testCue.obtainInstance();
 		
 		Assertions.assertEquals(44100, testCue.getFrameLength());
 
-		testCue.setFractionalPosition(hook0, 0);
-		Assertions.assertEquals(0, testCue.getFramePosition(hook0));
-		testCue.setFractionalPosition(hook0, 0.5);
-		Assertions.assertEquals(22050, testCue.getFramePosition(hook0));
-		testCue.setFractionalPosition(hook0, 1);
-		Assertions.assertEquals(44100, testCue.getFramePosition(hook0));
+		testCue.setFractionalPosition(instance0, 0);
+		Assertions.assertEquals(0, testCue.getFramePosition(instance0));
+		testCue.setFractionalPosition(instance0, 0.5);
+		Assertions.assertEquals(22050, testCue.getFramePosition(instance0));
+		testCue.setFractionalPosition(instance0, 1);
+		Assertions.assertEquals(44100, testCue.getFramePosition(instance0));
 		
-		testCue.setMicrosecondPosition(hook0, 0);
-		Assertions.assertEquals(0, testCue.getFramePosition(hook0));
-		testCue.setMicrosecondPosition(hook0, 500_000);
-		Assertions.assertEquals(22050, testCue.getFramePosition(hook0));
-		testCue.setMicrosecondPosition(hook0, 1_000_000);
-		Assertions.assertEquals(44100, testCue.getFramePosition(hook0));
+		testCue.setMicrosecondPosition(instance0, 0);
+		Assertions.assertEquals(0, testCue.getFramePosition(instance0));
+		testCue.setMicrosecondPosition(instance0, 500_000);
+		Assertions.assertEquals(22050, testCue.getFramePosition(instance0));
+		testCue.setMicrosecondPosition(instance0, 1_000_000);
+		Assertions.assertEquals(44100, testCue.getFramePosition(instance0));
 		
 		// Testing exceptions
-		// When instance is released, isActive will be false
+		// When instance0 is released, isActive will be false
 		// which should throw exception.
-		testCue.releaseInstance(hook0);
+		testCue.releaseInstance(instance0);
 		IllegalStateException thrown = Assertions.assertThrows(
 				IllegalStateException.class, () -> {
-					testCue.setFractionalPosition(hook0, 0);
+					testCue.setFractionalPosition(instance0, 0);
 				});		
 		Assertions.assertEquals("Illegal state, testCue, instance:" 
-				+ hook0, thrown.getMessage());
+				+ instance0, thrown.getMessage());
 		
 		thrown = Assertions.assertThrows(
 				IllegalStateException.class, () -> {
-					testCue.setMicrosecondPosition(hook0, 0);
+					testCue.setMicrosecondPosition(instance0, 0);
 				});		
 		Assertions.assertEquals("Illegal state, testCue, instance:" 
-				+ hook0, thrown.getMessage());
+				+ instance0, thrown.getMessage());
 
-		// When instance is started, isPlaying == true
+		// When an instance is started, isPlaying == true
 		// which should throw exception.
-		int hook1 = testCue.obtainInstance();
-		testCue.start(hook1);
-		Assertions.assertTrue(testCue.getIsPlaying(hook1));
+		int instance1 = testCue.obtainInstance();
+		testCue.start(instance1);
+		Assertions.assertTrue(testCue.getIsPlaying(instance1));
 		thrown = Assertions.assertThrows(
 				IllegalStateException.class, () -> {
-					testCue.setFractionalPosition(hook1, 0);
+					testCue.setFractionalPosition(instance1, 0);
 				});		
 		Assertions.assertEquals("Illegal state, testCue, instance:" 
-				+ hook1, thrown.getMessage());
+				+ instance1, thrown.getMessage());
 		thrown = Assertions.assertThrows(
 				IllegalStateException.class, () -> {
-					testCue.setMicrosecondPosition(hook1, 0);
+					testCue.setMicrosecondPosition(instance1, 0);
 				});		
 		Assertions.assertEquals("Illegal state, testCue, instance:" 
-				+ hook1, thrown.getMessage());
+				+ instance1, thrown.getMessage());
 	}
 	
 	@Test
@@ -104,34 +108,32 @@ class AudioCueTest {
 		AudioCue testCue = AudioCue.makeStereoCue(pcmData, "testCue", 5);
 		
 		// default volume
-		int hook0 = testCue.play();
-		Assertions.assertEquals(1, testCue.getVolume(hook0));
+		int instance0 = testCue.play();
+		Assertions.assertEquals(1, testCue.getVolume(instance0));
 
 		// Volume changes incrementally while playing the cue.
 		// Since we aren't actually running the "playing" 
 		// methods, the change should not have taken effect.		
-		testCue.setVolume(hook0, 0.25);
-		Assertions.assertNotEquals(0.25, testCue.getVolume(hook0));
+		testCue.setVolume(instance0, 0.25);
+		Assertions.assertNotEquals(0.25, testCue.getVolume(instance0));
 		
-		testCue.stop(hook0);
-		testCue.setVolume(hook0, 0.75);
+		testCue.stop(instance0);
+		testCue.setVolume(instance0, 0.75);
 		// isPlaying == false, so setVolume() should take immediate effect
-		Assertions.assertEquals(0.75, testCue.getVolume(hook0));
+		Assertions.assertEquals(0.75, testCue.getVolume(instance0));
 		
 		// Play, with volume specified
-		int hook1 = testCue.play(0.5);
-		Assertions.assertEquals(0.5, testCue.getVolume(hook1));
-		int hook2 = testCue.play(0.75, 0, 1, 0);
-		Assertions.assertEquals(0.75, testCue.getVolume(hook2));
+		int instance1 = testCue.play(0.5);
+		Assertions.assertEquals(0.5, testCue.getVolume(instance1));
+		int instance2 = testCue.play(0.75, 0, 1, 0);
+		Assertions.assertEquals(0.75, testCue.getVolume(instance2));
 		
 		// test clamps
-		int hook3 = testCue.play(1.5);
-		Assertions.assertEquals(1, testCue.getVolume(hook3));
-		int hook4 = testCue.play(-1);
-		Assertions.assertEquals(0, testCue.getVolume(hook4));
+		int instance3 = testCue.play(1.5);
+		Assertions.assertEquals(1, testCue.getVolume(instance3));
+		int instance4 = testCue.play(-1);
+		Assertions.assertEquals(0, testCue.getVolume(instance4));
 	}
-	
-	
 
 	@Test
 	void testPanBasics() {
@@ -140,29 +142,29 @@ class AudioCueTest {
 		AudioCue testCue = AudioCue.makeStereoCue(pcmData, "testCue", 4);
 		
 		// default pan
-		int hook0 = testCue.play();
-		Assertions.assertEquals(0, testCue.getPan(hook0));
+		int instance0 = testCue.play();
+		Assertions.assertEquals(0, testCue.getPan(instance0));
 
 		// Pan changes incrementally while playing the cue.
 		// Since we aren't actually running the "playing" 
 		// methods, the change should not have taken effect.
-		testCue.setPan(hook0, 0.25);
-		Assertions.assertNotEquals(0.25, testCue.getPan(hook0));
+		testCue.setPan(instance0, 0.25);
+		Assertions.assertNotEquals(0.25, testCue.getPan(instance0));
 		
-		testCue.stop(hook0);
-		testCue.setPan(hook0, 0.75);
+		testCue.stop(instance0);
+		testCue.setPan(instance0, 0.75);
 		// isPlaying == false, so setPan() should take immediate effect
-		Assertions.assertEquals(0.75, testCue.getPan(hook0));
+		Assertions.assertEquals(0.75, testCue.getPan(instance0));
 		
 		// Play, with pan specified
-		int hook1 = testCue.play(1, -0.5, 1, 0);
-		Assertions.assertEquals(-0.5, testCue.getPan(hook1));
+		int instance1 = testCue.play(1, -0.5, 1, 0);
+		Assertions.assertEquals(-0.5, testCue.getPan(instance1));
 
 		// test clamps
-		int hook2 = testCue.play(0.25, 1.5, 1, 0);
-		Assertions.assertEquals(1, testCue.getPan(hook2));
-		int hook3 = testCue.play(0.25, -1.5, 1, 0);
-		Assertions.assertEquals(-1, testCue.getPan(hook3));
+		int instance2 = testCue.play(0.25, 1.5, 1, 0);
+		Assertions.assertEquals(1, testCue.getPan(instance2));
+		int instance3 = testCue.play(0.25, -1.5, 1, 0);
+		Assertions.assertEquals(-1, testCue.getPan(instance3));
 	}
 
 	@Test
@@ -172,29 +174,29 @@ class AudioCueTest {
 		AudioCue testCue = AudioCue.makeStereoCue(pcmData, "testCue", 4);
 		
 		// default speed
-		int hook0 = testCue.play();
-		Assertions.assertEquals(1, testCue.getSpeed(hook0));
+		int instance0 = testCue.play();
+		Assertions.assertEquals(1, testCue.getSpeed(instance0));
 
 		// Speed changes incrementally while playing the cue.
 		// Since we aren't actually running the "playing" 
 		// methods, the change should not have taken effect.
-		testCue.setSpeed(hook0, 2.5);
-		Assertions.assertNotEquals(2.5, testCue.getSpeed(hook0));
+		testCue.setSpeed(instance0, 2.5);
+		Assertions.assertNotEquals(2.5, testCue.getSpeed(instance0));
 		
-		testCue.stop(hook0);
-		testCue.setSpeed(hook0, 0.75);
+		testCue.stop(instance0);
+		testCue.setSpeed(instance0, 0.75);
 		// isPlaying == false, so setSpeed() should take immediate effect
-		Assertions.assertEquals(0.75, testCue.getSpeed(hook0));
+		Assertions.assertEquals(0.75, testCue.getSpeed(instance0));
 		
 		// play(), with speed specified
-		int hook1 = testCue.play(0.5, -0.5, 3, 0);
-		Assertions.assertEquals(3, testCue.getSpeed(hook1));
+		int instance1 = testCue.play(0.5, -0.5, 3, 0);
+		Assertions.assertEquals(3, testCue.getSpeed(instance1));
 
 		// test clamps
-		int hook2 = testCue.play(0.25, 0.25, 9, 0);
-		Assertions.assertEquals(8, testCue.getSpeed(hook2));
-		int hook3 = testCue.play(0.25, -1.5, 0.1, 0);
-		Assertions.assertEquals(0.125, testCue.getSpeed(hook3));	
+		int instance2 = testCue.play(0.25, 0.25, 9, 0);
+		Assertions.assertEquals(8, testCue.getSpeed(instance2));
+		int instance3 = testCue.play(0.25, -1.5, 0.1, 0);
+		Assertions.assertEquals(0.125, testCue.getSpeed(instance3));	
 	}
 	
 	@Test
@@ -250,13 +252,13 @@ class AudioCueTest {
 		testCue.setPanType(PanType.CENTER_LINEAR);
 				
 		// Default play() method sets volume to initial value of 1f.
-		int hook = testCue.play();
+		int instance0 = testCue.play();
 		// When playing, volume changes are spread out over AudioCue.VOLUME_STEPS.
 		double targetVolume = 0.5;
-		testCue.setVolume(hook, targetVolume);
-		// Set to loop so that instance does not recycle, so that we 
-		// can execute .getVolume() on instance at end of test.
-		testCue.setLooping(hook, -1);
+		testCue.setVolume(instance0, targetVolume);
+		// Set to loop so that instance0 does not recycle, so that we 
+		// can execute .getVolume() on instance0 at end of test.
+		testCue.setLooping(instance0, -1);
 		
 		float[] testBuffer = testCue.readTrack();
 		
@@ -265,7 +267,7 @@ class AudioCueTest {
 			Assertions.assertTrue(cueData[i] - testBuffer[i] < cueData[i + 2] - testBuffer[i + 2]);
 		}
 		
-		Assertions.assertEquals(targetVolume, testCue.getVolume(hook));		
+		Assertions.assertEquals(targetVolume, testCue.getVolume(instance0));		
 		Assertions.assertEquals(cueData[lastFrame] * targetVolume, testBuffer[lastFrame]);
 	}
 
@@ -382,16 +384,16 @@ class AudioCueTest {
 		
 		// Set up AudioCue and instance
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
-		int hook = testCue.obtainInstance();
-		testCue.setVolume(hook, 1);
+		int instance0 = testCue.obtainInstance();
+		testCue.setVolume(instance0, 1);
 
 		// Tests for FULL_LINEAR type pan.
 		testCue.setPanType(AudioCue.PanType.FULL_LINEAR);
 
 		// Pan = -1 (full left)
 		float panVal = -1;
-		testCue.setPan(hook, panVal);
-		testCue.start(hook);
+		testCue.setPan(instance0, panVal);
+		testCue.start(instance0);
 
 		float[] testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
@@ -400,11 +402,11 @@ class AudioCueTest {
 		}
 
 		// Pan = 0 (center)
-		testCue.stop(hook);
-		testCue.setFramePosition(hook, 0);
+		testCue.stop(instance0);
+		testCue.setFramePosition(instance0, 0);
 		panVal = 0;
-		testCue.setPan(hook, panVal);
-		testCue.start(hook);
+		testCue.setPan(instance0, panVal);
+		testCue.start(instance0);
 
 		testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
@@ -413,11 +415,11 @@ class AudioCueTest {
 		}
 
 		// Pan = 1 (full right)
-		testCue.stop(hook);
-		testCue.setFramePosition(hook, 0);
+		testCue.stop(instance0);
+		testCue.setFramePosition(instance0, 0);
 		panVal = 1;
-		testCue.setPan(hook, panVal);
-		testCue.start(hook);
+		testCue.setPan(instance0, panVal);
+		testCue.start(instance0);
 
 		testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
@@ -429,11 +431,11 @@ class AudioCueTest {
 		testCue.setPanType(AudioCue.PanType.CENTER_LINEAR);
 
 		// Pan = -1 (full left)
-		testCue.stop(hook);
-		testCue.setFramePosition(hook, 0);
+		testCue.stop(instance0);
+		testCue.setFramePosition(instance0, 0);
 		panVal = -1;
-		testCue.setPan(hook, panVal);
-		testCue.start(hook);
+		testCue.setPan(instance0, panVal);
+		testCue.start(instance0);
 		
 		testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
@@ -442,11 +444,11 @@ class AudioCueTest {
 		}
 		
 		// Pan = 0 (center)
-		testCue.stop(hook);
-		testCue.setFramePosition(hook, 0);
+		testCue.stop(instance0);
+		testCue.setFramePosition(instance0, 0);
 		panVal = 0;
-		testCue.setPan(hook, panVal);
-		testCue.start(hook);
+		testCue.setPan(instance0, panVal);
+		testCue.start(instance0);
 		
 		testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
@@ -455,11 +457,11 @@ class AudioCueTest {
 		}
 
 		// Pan = 1 (full right)
-		testCue.stop(hook);
-		testCue.setFramePosition(hook, 0);
+		testCue.stop(instance0);
+		testCue.setFramePosition(instance0, 0);
 		panVal = 1;
-		testCue.setPan(hook, panVal);
-		testCue.start(hook);
+		testCue.setPan(instance0, panVal);
+		testCue.start(instance0);
 		
 		testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
@@ -471,11 +473,11 @@ class AudioCueTest {
 		testCue.setPanType(AudioCue.PanType.CIRCULAR);
 
 		// Pan = -1 (full left)
-		testCue.stop(hook);
-		testCue.setFramePosition(hook, 0);
+		testCue.stop(instance0);
+		testCue.setFramePosition(instance0, 0);
 		panVal = -1;
-		testCue.setPan(hook, panVal);
-		testCue.start(hook);
+		testCue.setPan(instance0, panVal);
+		testCue.start(instance0);
 		
 		testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
@@ -484,11 +486,11 @@ class AudioCueTest {
 		}
 		
 		// Pan = 0 (center)
-		testCue.stop(hook);
-		testCue.setFramePosition(hook, 0);
+		testCue.stop(instance0);
+		testCue.setFramePosition(instance0, 0);
 		panVal = 0;
-		testCue.setPan(hook, panVal);
-		testCue.start(hook);
+		testCue.setPan(instance0, panVal);
+		testCue.start(instance0);
 		
 		testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
@@ -497,11 +499,11 @@ class AudioCueTest {
 		}
 
 		// Pan = 1 (full right)
-		testCue.stop(hook);
-		testCue.setFramePosition(hook, 0);
+		testCue.stop(instance0);
+		testCue.setFramePosition(instance0, 0);
 		panVal = 1;
-		testCue.setPan(hook, panVal);
-		testCue.start(hook);
+		testCue.setPan(instance0, panVal);
+		testCue.start(instance0);
 		
 		testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
@@ -523,13 +525,13 @@ class AudioCueTest {
 		
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
 		testCue.setPanType(AudioCue.PanType.FULL_LINEAR);
-		int hook = testCue.obtainInstance();
-		testCue.setVolume(hook, 1);
-		testCue.setPan(hook, -1);
-		testCue.start(hook);
+		int instance0 = testCue.obtainInstance();
+		testCue.setVolume(instance0, 1);
+		testCue.setPan(instance0, -1);
+		testCue.start(instance0);
 		// In playing state, the change from -1 to 1 
 		// should be incrementally spread across AudioCue.PAN_STEPS
-		testCue.setPan(hook, 1);		
+		testCue.setPan(instance0, 1);		
 		
 		float[] testBuffer = testCue.readTrack();
 		int secondToLastFrame = AudioCue.PAN_STEPS - 1;
@@ -543,7 +545,7 @@ class AudioCueTest {
 					cueData[cueIdx + 1] - testBuffer[cueIdx + 1] > cueData[cueIdx + 3] - testBuffer[cueIdx]);
 		}
 		int lastCueFrameIdx =  (AudioCue.PAN_STEPS - 1) * 2;
-		Assertions.assertEquals(1, testCue.getPan(hook));
+		Assertions.assertEquals(1, testCue.getPan(instance0));
 		Assertions.assertEquals(0, testBuffer[lastCueFrameIdx]);
 		Assertions.assertEquals(-1, testBuffer[lastCueFrameIdx + 1]);	
 	}
@@ -566,18 +568,19 @@ class AudioCueTest {
 		// With CENTER_LINEAR, default pan 0 leaves both L & R values as is.
 		testCue.setPanType(PanType.CENTER_LINEAR);
 		
-		int hook = testCue.obtainInstance();
-		testCue.setVolume(hook, 1);
-		testCue.setPan(hook, 0);
+		int instance0 = testCue.obtainInstance();
+		testCue.setVolume(instance0, 1);
+		testCue.setPan(instance0, 0);
 
 		// testing 3/4 speed
 		float testSpeed = 0.75f;
-		testCue.setSpeed(hook, testSpeed);
-		testCue.start(hook);
+		testCue.setSpeed(instance0, testSpeed);
+		testCue.start(instance0);
 		float[] testBuffer = testCue.readTrack();
 		
 		// Check the current cursor position is at expected
-		Assertions.assertEquals(testSpeed * AudioCue.DEFAULT_BUFFER_FRAMES, testCue.getFramePosition(hook));
+		Assertions.assertEquals(testSpeed * AudioCue.DEFAULT_BUFFER_FRAMES, 
+				testCue.getFramePosition(instance0));
 		
 		// Calculate the expected value after 5 steps taken (i.e., after 5th frame output).
 		int testSteps = 5;
@@ -607,10 +610,10 @@ class AudioCueTest {
 		// With CENTER_LINEAR, default pan 0 leaves both L & R values as is.
 		testCue.setPanType(PanType.CENTER_LINEAR);
 		
-		int hook = testCue.obtainInstance();
-		testCue.setVolume(hook, 1);
-		testCue.setPan(hook, 0);
-		testCue.setLooping(hook, -1);
+		int instance0 = testCue.obtainInstance();
+		testCue.setVolume(instance0, 1);
+		testCue.setPan(instance0, 0);
+		testCue.setLooping(instance0, -1);
 		
 		// The following maneuver is used to set a smaller buffer size, giving us more 
 		// opportunities to check the contents of the AudioCueCursor.
@@ -621,12 +624,12 @@ class AudioCueTest {
 			e.printStackTrace();
 		}
 		
-		testCue.start(hook);
+		testCue.start(instance0);
 		
 		// Default speed is 1.
 		// By setting a new speed after cue has started
 		// the speed change will be handled incrementally.
-		testCue.setSpeed(hook, 0.5);
+		testCue.setSpeed(instance0, 0.5);
 	
 		float[] testBuffer;
 		
@@ -644,10 +647,10 @@ class AudioCueTest {
 			double currFrame = elapsedFrames * startSpeed  + 
 					(((elapsedFrames + 1) * elapsedFrames * oneIncrement) / 2.0) ;
 			float zeroDelta = (float)Math.pow(10, -6);	
-			Assertions.assertEquals(currFrame, testCue.getFramePosition(hook), zeroDelta);
+			Assertions.assertEquals(currFrame, testCue.getFramePosition(instance0), zeroDelta);
 			
 		} while (true);
-		Assertions.assertEquals(targetSpeed, testCue.getSpeed(hook));
+		Assertions.assertEquals(targetSpeed, testCue.getSpeed(instance0));
 	}	
 	
 }

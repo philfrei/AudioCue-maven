@@ -1,5 +1,6 @@
 package com.adonax.audiocue;
 
+import java.util.Arrays;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.sound.sampled.LineUnavailableException;
@@ -7,28 +8,39 @@ import javax.sound.sampled.Mixer;
 import javax.sound.sampled.SourceDataLine;
 
 /**
- * {@code AudioMixer} combines the output of members of an  
- * {@code AudioMixerTrack} collection into a single 
- * {@code SourceDataLine} output line. Classes implementing
- * {@code AudioMixerTrack} can be added and removed from the
- * mix asynchronously, with the operation occurring at the  
- * next buffer iteration. Source tracks must provide for the 
- * return of an array of sound data frames whose length is 
- * specified by the {@code AudioMixer}. Unlike an analog 
- * mixer used in sound studios, the AudioMixer does <i>not</i> 
- * provide functions such as panning or volume
- * controls. The only standard function is an equivalent
- * of a <em>mute</em> control, accessible via the {@code running}
- * variable. The mixer imposes a simple floor/ceiling of -1, 1, 
- * to guard against volume overflows.
+ * An {@code AudioMixer} mixes the media content of all the members  
+ * of a {@code AudioMixerTrack} collection into a single output
+ * line. Classes implementing {@code AudioMixerTrack} can be added 
+ * and removed from the mix asynchronously, with the operation 
+ * occurring at the next iteration of the read buffer. Unlike a 
+ * mixer used in sound studios, the {@code AudioMixer} does not 
+ * provide functions such as panning or volume controls. 
+ * <p>
+ * An {@code SourceDataLine} can be in one of two states: (1) running, 
+ * or (2) not running. When running, audio data is read from the 
+ * constituent tracks, mixed and written as a single stream using a
+ * {@code javax.sound.sampled.SourceDataLine}. The mixer imposes a 
+ * simple floor/ceiling of -1, 1, to guard against volume overflows.
+ * When not running, the {@code SourceDataLine} is allowed to drain 
+ * and close. A new {@code SourceDataLine} is instantiated if/when 
+ * this {@code AudioMixer} is reopened.
+ * <p>
+ * Values used to configure the media output are provided in the 
+ * constructor, and are held as immutables. These include a 
+ * {@code javax.sound.sampled.Mixer} used to provide the 
+ * {@code SourceDataLine}, the size of the buffer used for iterative
+ * reads of the PCM data, and the thread priority. Multiple constructors
+ * are provided to facilitate the use of default values. These
+ * configuration values override those associated with the constituent
+ * tracks. 
  * 
  * @author Philip Freihofner
- * @version AudioCue 1.0
- * @see http://adonax.com/AudioCue
+ * @version AudioCue 2.0.0
  */
 public class AudioMixer 
 {
-	private AudioMixerTrack[] trackCache, mixerTracks;  
+	private AudioMixerTrack[] trackCache;  
+	private AudioMixerTrack[] mixerTracks;  
 	private CopyOnWriteArrayList<AudioMixerTrack> trackManager; 
 	private volatile boolean trackCacheUpdated;
 	private int trackCount;
@@ -40,13 +52,42 @@ public class AudioMixer
 	 */
 	public int getTracksCount() {return trackCount;}
 	
-	public final int bufferSize, sdlByteBufferSize, 
-			readBufferSize;
+	/**
+	 * An immutable number of PCM frames held in array buffers, set 
+	 * during instantiation.
+	 */
+	public final int bufferFrames;
+	
+	/**
+	 * An immutable number describing the size of an internal array 
+	 * buffer, set during instantiation. The {@code readBufferSize} has 
+	 * two PCM values per each frame being handled, corresponding to the
+	 * left and right stereo channels, and is calculated by multiplying
+	 * {@code bufferFrames} by 2.
+	 */
+	public final int readBufferSize; 
+
+	/**
+	 * An immutable number describing the size of an internal array 
+	 * buffer, set during instantiation. The {@code sdlBufferSize} has 
+	 * four bytes per frame, as each of the two PCM values per frame is
+	 * encoded into two constituent bytes. The {@code sdlByteBufferSize}
+	 * is calculated by multiplying {@code bufferFrames} by 4.
+	 */
+	public final int sdlByteBufferSize;
+
 	private float[] audioData;
 	private Mixer mixer;
+	
+	/**
+	 * A value that holds the priority level of the thread that that handles
+	 * the media output, set upon instantiation of the class. The value is 
+	 * clamped to the range {@code java.lang.Thread.MIN_PRIORITY} to
+	 * {@code java.lang.Thread.MAX_PRIORITY}.   
+	 */
 	public final int threadPriority;
 	
-	private volatile boolean running;
+	private volatile boolean mixerRunning;
 
 	/**
 	 * Constructor for {@code AudioMixer}, using default
@@ -62,7 +103,7 @@ public class AudioMixer
 	 */
 	public AudioMixer()
 	{
-		this(null, 1024 * 8, 10); // default build
+		this(null, 1024 * 8, Thread.MAX_PRIORITY); // default build
 	}
 	
 	/**
@@ -78,32 +119,31 @@ public class AudioMixer
 	 * cpu cycles from other threads.
 	 * 
 	 * @param mixer javax.sound.sampled.Mixer to be used
-	 * @param bufferSize int specifying the number of frames to 
+	 * @param bufferFrames int specifying the number of frames to 
 	 * process with each iteration
 	 * @param threadPriority int ranging from 1 to 10 specifying 
 	 * the priority of the sound thread
 	 */
-	public AudioMixer(Mixer mixer, int bufferSize, int threadPriority) 
+	public AudioMixer(Mixer mixer, int bufferFrames, int threadPriority) 
 	{
 		trackManager = new CopyOnWriteArrayList<AudioMixerTrack>();
-		this.bufferSize = bufferSize;
-		this.readBufferSize = bufferSize * 2;
-		this.sdlByteBufferSize = bufferSize * 4;
+		this.bufferFrames = bufferFrames;
+		this.readBufferSize = bufferFrames * 2;
+		this.sdlByteBufferSize = bufferFrames * 4;
 		this.mixer = mixer;
 		this.threadPriority = threadPriority;
 	}
 	
 	// reminder: this does NOT update the trackCache!!
 	/**
-	 * Designates an {@code AudioMixerTrack} to be staged
-	 * for loading to the array of tracks being mixed. If 
-	 * the mixer is not running, the track will become 
-	 * part of the mix when the (@code AudioMixer} is started. 
-	 * If the {@code AudioMixer} is running, the method 
-	 * {@code updateTracks} must be executed in order for
-	 * the new track to be added to the mix.
+	 * Designates an {@code AudioMixerTrack} to be staged for addition
+	 * into the collection of tracks actively being mixed. If the  
+	 * {@code AudioMixer} is running, actual addition occurs when the 
+	 * {@code updateTracks} method is executed. If the 
+	 * {@code AudioMixer} is not running, the addition will occur
+	 * automatically when the {@code start} method is called.
 	 * 
-	 * @param track {@code AudioMixerTrack} to be added
+	 * @param track - an {@code AudioMixerTrack} to be added to the mix
 	 */
 	public void addTrack(AudioMixerTrack track)
 	{
@@ -112,30 +152,25 @@ public class AudioMixer
 
 	// reminder: this does NOT update the trackCache!!
 	/**
-	 * Designates an {@code AudioMixerTrack} to be staged
-	 * for removal from the array of tracks being mixed. If 
-	 * the mixer is not running, the track, if previously
-	 * added, will <em>not</em> be included in the mix
-	 * when the (@code AudioMixer} is started. 
-	 * If the {@code AudioMixer} is running, the method 
-	 * {@code updateTracks} must be executed in order for
-	 * the new track to be removed from the mix.
-	 * 
-	 * @param track
-	 * @throws IllegalThreadStateException
+	 * Designates an {@code AudioMixerTrack} to be staged for removal
+	 * from the collection of tracks actively being mixed.  If the
+	 * {@code AudioMixer} is running, actual removal occurs when the 
+	 * {@code updateTracks} method is executed.  If the
+	 * {@code AudioMixer} is not running, the removal will occur
+	 * automatically when the {@code start} method is called.
+	 *  
+	 * @param track - an {@code AudioMixerTrack} to be removed from the mix
 	 */
-	public void removeTrack(AudioMixerTrack track) throws IllegalThreadStateException
+	public void removeTrack(AudioMixerTrack track)
 	{
 		trackManager.remove(track);
 	}
 
 	/**
-	 * This method signals the {@code AudioMixer}'s playback 
-	 * loop to update the collection of tracks being mixed
-	 * at the next opportunity (depends on the size of the
-	 * buffer). Tracks to be added or removed are staged 
-	 * for update by the methods {@code addTrack} and
-	 * {@code removeTrack}.
+	 * Signals the internal media writer to load an updated  
+	 * {@code AudiomixerTrack} collection at the next opportunity. 
+	 * Tracks to be added or removed are first staged using the 
+	 * methods {@code addTrack} and {@code removeTrack}.
 	 */
 	public void updateTracks()
 	{
@@ -148,7 +183,6 @@ public class AudioMixer
 		
 		trackCache = workCopyTracks;
 		trackCacheUpdated = true;
-		System.out.println("CoreMixer.updateTracks, new size:" + size);
 	}
 	
 	/**
@@ -163,35 +197,33 @@ public class AudioMixer
 	 * @throws LineUnavailableException is thrown if there 
 	 * is a problem securing a {@code SourceDataLine}
 	 */
-	public void start() throws IllegalStateException, 
-		LineUnavailableException
+	public void start() throws LineUnavailableException
 	{
-		if (running) throw new IllegalStateException(
+		if (mixerRunning) throw new IllegalStateException(
 				"AudioMixer is already running!");
 		
 		updateTracks();
 		
-		AudioMixerPlayer player = new AudioMixerPlayer(
-				mixer, bufferSize); 
+		AudioMixerPlayer player = new AudioMixerPlayer(mixer); 
 		Thread t = new Thread(player);
 		t.setPriority(threadPriority);
 		t.start();
 		
-		running = true;
+		mixerRunning = true;
 	}
 	
 	/**
-	 * Stops the iteration of the {@code AudioMixer} after the 
-	 * soonest data write operation. 
+	 * Sets a flag that will signal the {@code AudioMixer} to stop
+	 * media writes and release resources.
 	 * 
 	 * @throws IllegalStateException if the {@code AudioMixer}
 	 * is already in a stopped state.
 	 */
-	public void stop() throws IllegalStateException
+	public void stop()
 	{
-		if (!running) throw new IllegalStateException("PFCoreMixer already stopped!");
+		if (!mixerRunning) throw new IllegalStateException("PFCoreMixer already stopped!");
 		
-		running = false;
+		mixerRunning = false;
 	}
 	
     private float[] fillBufferFromTracks(float[] normalizedOut)
@@ -199,7 +231,7 @@ public class AudioMixer
     	// loop through all tracks, summing	
 		for (int n = 0; n < trackCount; n++)	
 		{
-			if (mixerTracks[n].isRunning())
+			if (mixerTracks[n].isTrackRunning())
 			{
 				try 
 				{
@@ -235,10 +267,10 @@ public class AudioMixer
 		private float[] readBuffer;
 		private byte[] audioBytes;
 		
-		AudioMixerPlayer(Mixer mixer, int bufferFrames) throws 
-		LineUnavailableException
+		AudioMixerPlayer(Mixer mixer) throws LineUnavailableException
 		{
 			audioBytes = new byte[sdlByteBufferSize];
+			readBuffer = new float[readBufferSize];
 			
 			sdl = AudioCue.getSourceDataLine(mixer, AudioCue.info);
 			sdl.open(AudioCue.audioFormat, sdlByteBufferSize);
@@ -248,26 +280,21 @@ public class AudioMixer
 		// Sound Thread
 		public void run()
 		{
-			while(running)
+			while(mixerRunning)
 			{				
 		    	if (trackCacheUpdated)
 		    	{
 		    		/*
 		    		 * Concurrency plan: Better to allow a late  
 		    		 * or redundant update than to skip an update.
-		    		 * Example: flag = true, next line resets, but 
-		    		 * updater sets true again prior to mixerTracks
-		    		 * assignment. We might load the same trackCache
-		    		 * twice. That is OK. 
 		    		 */
 		    		trackCacheUpdated = false; 
 		    		mixerTracks = trackCache;
 		    		trackCount = mixerTracks.length;
 		    	}
-				readBuffer = new float[readBufferSize];
+		    	Arrays.fill(readBuffer, 0);
 				readBuffer = fillBufferFromTracks(readBuffer);
-				audioBytes = AudioCue.fromBufferToAudioBytes(
-								audioBytes, readBuffer);
+				audioBytes = AudioCue.fromPcmToAudioBytes(audioBytes, readBuffer);
 				sdl.write(audioBytes, 0, sdlByteBufferSize);
 			}
 
@@ -277,4 +304,3 @@ public class AudioMixer
 		}
 	}
 }
-

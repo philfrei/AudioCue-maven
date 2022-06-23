@@ -1,32 +1,32 @@
 # AudioCue-maven
-*AudioCue* is a Java audio-playback class, modeled on [javax.sound.sampled.Clip](https://docs.oracle.com/en/java/javase/17/docs/api/java.desktop/javax/sound/sampled/Clip.html), 
-enhanced with concurrent playback and with dynamic handling of volume, pan and frequency. 
-Included is a mixer that can be optionally used to merge the output of multiple *AudioCues* into a single line out.
+*AudioCue* is a Java audio-playback class, modeled on 
+[javax.sound.sampled.Clip](https://docs.oracle.com/en/java/javase/17/docs/api/java.desktop/javax/sound/sampled/Clip.html), 
+enhanced with concurrent playback and with dynamic handling of volume, pan and frequency. Included is a mixer
+that can be optionally used to merge the output of multiple *AudioCues* into a single line out.
 
-This project changes the build tool of [an earlier version of AudioCue](https://github.com/philfrei/AudioCue) from *Gradle* to *Maven*. 
-A goal: publication via *Sonatype/Maven Central*. 
-In support of that goal, unit tests have been added, and some errors and shortcomings uncovered by those tests have been corrected. 
-With the two projects starting to diverge, I recommend preferring these more recent builds.
+In this project, the build tool is Maven. The [previous version](https://github.com/philfrei/AudioCue) used Gradle. 
+A goal: publication via *Sonatype/Maven Central*. In support of that goal, unit tests have been added, 
+and more rigorous API documentation has been written. Over the course of making these changes, some errors 
+and shortcomings were uncovered and have been corrected. The changes are extensive enough that this project 
+will be designated version 2.0.0.
 
-Until *AudioCue* is available at *Maven Central*, the best way to make use of the **AudioCue** class is to fork this project, then clone it to a development environment. 
-From there, you can execute Maven's *install* command, which will put the library into your local Maven repository. 
-Or, you can directly make use of the jar file that is created in the **/target** subdirectory via the *package* command by adding this jar file to your project's classpath. 
-Also, since there are only five files, you can consider copying these files directly into your project. 
-Just be sure, if you do, to edit the *package* lines of the files to appropriately reflect the new file locations.
+Until *AudioCue* is available at *Maven Central*, the best way to make use of the **AudioCue** class is 
+to fork this project, then clone it to a development environment. From there, executing Maven's 
+*install* command will put the library into the local Maven repository. Or, you can directly make 
+use of the jar file that is created in the **/target** subdirectory via the *package* command by adding 
+this jar file to your project's classpath. Also, since there are only a few files, you can consider 
+simply copying these files directly into your project. Just be sure, if you do, to edit the *package* 
+lines of the files to appropriately reflect the new file locations.
 
-To use *AudioCue* in a Maven project, add the following dependency to your project's POM file.
+To use *AudioCue* as a Maven dependency, add the following to your project's POM file.
 
-    <dependency>
-      <groupId>com.adonax</groupId>
-      <artifactId>audiocue</artifactId>
-      <version>1.1.0</version>
-    </dependency>
-    
-The API can be generated via the Javadoc tool. At this time, the API for this project and the earlier [Gradle-based AudioCue](https://github.com/philfrei/AudioCue) are close to identical,
-with the only divergence being that the *AudioCueMixer* **.getTrackLength()** method has been renamed 
-**.getTracksCount()**. 
-This API can be viewed [here](http://adonax.com/AudioCue/api). 
-*TODO: generate a new Javadoc API.*
+    <dependencies>  
+        <dependency>
+            <groupId>com.adonax</groupId>
+            <artifactId>audiocue</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+    </dependencies>
 
 ## Usage
 ### Basic playback (for "fire-and-forget" use)

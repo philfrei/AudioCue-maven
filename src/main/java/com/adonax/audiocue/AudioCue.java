@@ -20,60 +20,169 @@ import javax.sound.sampled.SourceDataLine;
 import javax.sound.sampled.UnsupportedAudioFileException;
 
 /**
- * The {@code AudioCue} represents a segment of audio media 
- * that is loaded into memory prior to playback and which 
- * offers minimal latency, concurrent playback of instances,
- * and real time controls for volume, panning and playback 
- * speed of each instance. The {@code AudioCue} combines 
- * and builds upon many features of the 
- * {@code javax.sound.sampled.Clip} and 
- * {@code javafx.scene.media.AudioClip}. Data is loaded 
- * either from a "CD Quality" wav file (44100 fps, 16-bit, 
- * little-endian) or a float array that conforms to this 
- * format, and stored in an internal float array as 
- * normalized values with the range [-1.0, 1.0].
- * <p>  
- * Unlike a {@code Clip} or {@code AudioClip} the {@code 
- * play} method returns an {@code int} <em>hook</em> to
- * the playable instance. You can ignore the hook and 
- * use the {@code play} method in a fire-and-forget 
- * manner, in which case the instance hook is automatically 
- * returned to the pool of available instances when play 
- * completes. Alternatively, you can use the hook as a 
- * parameter to specify an instance to {@code start} or 
- * {@code stop} (in effect, <em>pause</em>)
- * or to position the "play head" to any sample frame,
- * or to set other properties of the instance such as the 
- * number of repetitions. The hook can also be used to 
- * designate the target instance for setting or modulating
- * the volume, pan, or play speed while it is playing. This 
- * provides a reliable alternative to the use of a
- * {@code javax.sound.sampled.Control} for smooth 
- * volume fade-ins and fade-outs, as well as a basis for 
- * pitch-based effects such as Doppler shifting.
+ * The {@code AudioCue} class functions as a data line, where the
+ * audio data is loaded entirely into and played directly from 
+ * memory. {@code AudioCue} is modeled upon 
+ * {@code javax.sound.sampled.Clip} but with additional capabilities.
+ * It can play multiple instances concurrently, and offers
+ * individual, dynamic controls for volume, panning and speed for
+ * each concurrently playing instance.
  * <p>
- * Internally, a {@code javax.sound.sampled.SourceDataLine} 
- * is used for output. When you {@code open} the {@code AudioCue},
- * the line is configured with a buffer size of 1024
- * frames (4192 bytes) and a thread priority of {@code 
- * HIGHEST}. Alternative values can be specified as parameters
- * to the {@code open} method. 
+ * An {@code AudioCue} is created using the static factory method
+ * {@code makeAudioCue}. When doing so, the media data is loaded 
+ * either from a "CD Quality" wav file (44100 fps, 16-bit, stereo, 
+ * little-endian) or a float array of stereo PCM normalized to the 
+ * range -1 to 1, at 44100 fps. Once loaded, the media data is 
+ * immutable.
+ * <p>
+ * {@code AudioCue} achieves concurrent playback by treating state at
+ * two levels. A distinction is made between the {@code AudioCue} 
+ * which holds the audio data, and a playback <em>instance</em> which
+ * controls a cursor that traverses over that data and corresponds to
+ * a single sounding playback. Methods that dynamically affect
+ * playback (volume, pan, speed) operate at the instance level. When 
+ * using the factory method to create an {@code AudioCue}, the
+ * maximum number of simultaneously playing instances to be supported
+ * is set, along with the data source.
+ * <p>
+ * An {@code AudioCue} is either open or closed. Upon opening, an
+ * output line is obtained from the system. That line will either be
+ * held directly by the {@code AudioCue} or provided indirectly by an
+ * {@code AudioMixer}, in which case 'opening' refers to the act
+ * of registering as an {@code AudioMixerTrack} with an 
+ * {@code AudioMixer}. Upon closing, the {@code AudioCue} releases the
+ * system audio line, or if registered with an {@code AudioMixer}, 
+ * unregisters. Opening and closing events are broadcast to registered
+ * listeners implementing the methods
+ * {@code AudioCueListener.audioCueOpened} and
+ * {@code AudioCueListener.audioCueClosed}.
+ * <p>
+ * The line used for output is a 
+ * {@code javax.sound.sampled.SourceDataLine}. Default behavior is to 
+ * obtain the line from the default {@code javax.sound.sampled.Mixer},
+ * with a buffer size of 1024 frames (4192 bytes). The line will be
+ * be run from within a dedicated thread, with a thread priority of 
+ * {@code HIGHEST}. Given that the processing of audio data usually
+ * progresses much faster than time taken to play it, this thread 
+ * can be expected to spend most of its time in a blocked state, which
+ * allows maximizing the thread priority without impacting overall 
+ * performance. An alternative {@code Mixer}, buffer length or thread
+ * priority can be specified as parameters to the {@code open} method. 
+ * <p>
+ * An <em>instance</em> can either be <em>active</em> or not active,
+ * and, if active, can either be <em>running</em> or not running. 
+ * Instances are initially held in a pool as 'available instances'.
+ * An instance becomes active when it is removed from that pool. 
+ * Methods which remove an instance from the pool either return an
+ * {@code int} identifier or -1 if there are no available instances.
+ * An active instance can receive commands pertaining to the cursor's
+ * location in the audio data, to starting or stopping, as well as
+ * volume, pan, and speed changes, and other commands. An inactive
+ * instance can only receive a command that withdraws it from the 
+ * 'available instances' pool. An instance that is <em>running</em>
+ * is one that is currently being played.
+ * <p>
+ * Each instance holds its own state variables for volume, pan and
+ * speed, cursor location, and looping. Methods are provided for
+ * changing these values. If the methods are called while the 
+ * instance is not running, the new value is stored immediately and 
+ * will take affect when the instance is restarted. If the instance
+ * is running, and the change is for volume, pan, or speed, the new 
+ * value will be arrived at incrementally, with the increments 
+ * occurring behind the scenes on a per frame basis. This is done to
+ * prevent discontinuities in the signal that might result in audible
+ * clicks. If a running instance's property is updated before the 
+ * incremental changes have completed, the new target value takes 
+ * precedence, and a new increment is created based on the current,
+ * in-progress value.
+ * <p>
+ * An instance may be played on a <em>fire-and-forget</em> basis, in 
+ * which case it is automatically returned to the pool of available
+ * instances (active == false). Alternatively, the instance can be
+ * allowed to stay active upon completion. The behavior upon play 
+ * completion is controlled by the public method 
+ * {@code setRecycleWhenDone(int, boolean)}, where {@code int} is the
+ * instance identifier. When a {@code play} method is called, the 
+ * {@code recycledWhenDone} value is set to {@code true} by default.
+ * When {@code obtainInstance} is used, the {@code recycledWhenDone}
+ * value is set to {@code false}.
+ * <p>
+ * <strong>Examples</strong>: (assumes the audioCue is open) 
+ * <pre><code>    // (1) Fire-and-Forget, with default values.
+ *    audioCue.play(); // (vol = 1, pan = 0, speed = 1, loop = 0)
+ *    // instance will be recycled upon completion.
+ *    
+ *    // (2) Fire-and-forget, with explicit values
+ *    int play0 = audioCue.play(0.5, -0.75, 2, 1); 
+ *    // will play at "half" volume, "half way" to the left pan,
+ *    // double the speed, and will loop back and play again one time.
+ *    // Instance will be recycled upon completion, however, the
+ *    // play0 variable allows one to make further changes to the
+ *    // instance if executed prior to the completion of the 
+ *    // playback.
+ *    
+ *    // (3) Using obtainInstance()
+ *    int footstep = footstepCue.obtainInstance();
+ *    for (int i = 0; i < 10; i++) {
+ *        // play the successive footsteps more quietly
+ *        footstepCue.setVolume(footstep, 1 - (i * 0.1));
+ *        // successive footsteps will travel from left to right
+ *        footstepCue.setPan(footstep, -1 + (i * 0.2));
+ *        // cursor must be manually placed at the beginning
+ *        footstepCue.setFramePosition(footstep, 0);
+ *        footstepCue.start(footstep);
+ *        Thread.sleep(1000); // Allow time between each footstep start.
+ *        // This assumes that the cue is shorter than 1 second in 
+ *        // in length and each start will stop on its own.
+ *    }
+ *    // Another instance might be associated with a slightly 
+ *    // different speed, for example 1.1, implying a different 
+ *    // individual with a slightly lighter foot fall.
+ *    </code></pre>
+ * <p>   
+ * More extensive examples can be found in the companion github project
+ * <em>audiocue-demo</em>.   
  * 
  * @author Philip Freihofner
- * @version AudioCue 1.0.0
- * @see http://adonax.com/AudioCue
+ * @version AudioCue 2.0.0
  */
 public class AudioCue implements AudioMixerTrack
 {
+	/**
+	 * A {@code javax.sound.sampled.AudioFormat}, set to the only
+	 * format used by {@code AudioCue}, also known as 'CD quality.'
+	 * The type is signed PCM, with a rate of 44100 frames per second, 
+	 * with 16 bit encoding for each PCM value, stereo, and with the 
+	 * constituent bytes of each PCM value given in little-endian order.
+	 */
 	public static final AudioFormat audioFormat = 
 			new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, 
 					44100, 16, 2, 4, 44100, false);
+	/**
+	 * An immutable {@code javax.sound.sampled.Line.Info} that is used when obtaining a
+	 * {@code SourceDataLine} for media output.
+	 */
 	public static final Info info =	
 			new DataLine.Info(SourceDataLine.class, audioFormat);
-	
+	/**
+	 * A value indicating the default number of PCM frames in a buffer used in {@code AudioCuePlayer}
+	 * for processing media output.
+	 */
 	public static final int DEFAULT_BUFFER_FRAMES = 1024 ;
+	/**
+	 * A value indicating the number of frames over which the volume changes incrementally
+	 * when a new volume is given.  
+	 */
 	public static final int VOLUME_STEPS = 1024;
+	/**
+	 * A value indicating the number of frames over which the speed setting changes incrementally
+	 * when a new speed value is given.  
+	 */
 	public static final int SPEED_STEPS = 4096;
+	/**
+	 * A value indicating the number of frames over which the pan setting changes incrementally
+	 * when a new pan value is given.  
+	 */
 	public static final int PAN_STEPS = 1024;
 	
 	private final LinkedBlockingDeque<AudioCueCursor> availables;
@@ -82,7 +191,11 @@ public class AudioCue implements AudioMixerTrack
 	private final AudioCueCursor[] cursors;
 	private final int polyphony;
 	
-	private volatile boolean playerRunning;
+	private AudioCuePlayer player;
+	private AudioMixer audioMixer; 
+	
+	private boolean playerRunning;
+	private volatile boolean trackRunning;
 	private float[] readBuffer;
 	
 	
@@ -95,13 +208,10 @@ public class AudioCue implements AudioMixerTrack
 	/**
 	 * Sets the name of the {@code AudioCue}.
 	 * 
-	 * @param name a {@code String} to associate with this
+	 * @param name - a {@code String} to associate with this
 	 * {@code AudioCue}
 	 */
 	public void setName(String name) {this.name = name;}
-	
-	// only stored if AudioMixer is opened:
-	private AudioMixer audioMixer; 
 	
 	private CopyOnWriteArrayList<AudioCueListener> listeners;
 	
@@ -117,7 +227,7 @@ public class AudioCue implements AudioMixerTrack
 	 * coded for brevity in order to minimize extraneous 
 	 * processing on the audio thread.
 	 * 
-	 * @param listener a class implementing the 
+	 * @param listener - an object implementing the 
 	 * {@code AudioCueListener} interface
 	 */
 	public void addAudioCueListener(AudioCueListener listener)
@@ -130,7 +240,7 @@ public class AudioCue implements AudioMixerTrack
 	 * notifications of events pertaining to the {@code AudioCue}
 	 * and its playing instances.
 	 * 
-	 * @param listener a class implementing the 
+	 * @param listener - an object implementing the 
 	 * {@code AudioCueListener} interface
 	 */
 	public void removeAudioCueListener(AudioCueListener listener)
@@ -144,9 +254,6 @@ public class AudioCue implements AudioMixerTrack
 	 * Each function takes a pan setting as an input, ranging 
 	 * from -1 (100% left) to 1 (100% right) with 0 being the 
 	 * center pan setting. 
-	 * <p>
-	 * In the future, if or when mono media is implemented, a 
-	 * delay-based panning function option will be added.
 	 */
 	public static enum PanType 
 	{
@@ -212,8 +319,7 @@ public class AudioCue implements AudioMixerTrack
 	/**
 	 * Assigns the type of panning to be used.
 	 * 
-	 * @param panType a member of the {@code enum 
-	 * AudioCue.PanType}
+	 * @param panType - a member of the {@code enum AudioCue.PanType}
 	 * @see PanType
 	 */
 	public void setPanType(PanType panType)
@@ -223,24 +329,21 @@ public class AudioCue implements AudioMixerTrack
 	}
 			
 	/**
-	 * Creates and returns a new AudioCue. This method 
+	 * Creates and returns a new {@code AudioCue}. This method 
 	 * allows the direct insertion of a {@code float} 
-	 * array as an argument, where the data is presumed 
-	 * to conform to the "CD Quality" format: 44100 frames
-	 * per second, 16-bit encoding, stereo, little-endian.
+	 * PCM array as an argument, where the data is presumed 
+	 * to be stereo signed, normalized floats with a sample
+	 * rate of 44100 frames per second. The name for this
+	 * cue is set by the {@code name} argument.
 	 * The maximum number of concurrent playing instances
-	 * is given as the {@code polyphony} argument. 
-	 * The {@code polyphony} value can not be changed. 
-	 * A large value may require additional buffering and 
-	 * result in noticeable lag in order to prevent 
-	 * drop outs.
+	 * is set with the {@code polyphony} argument. 
 	 * 
-	 * @param cue a {@code float} array of audio data
+	 * @param cue - a {@code float} array of audio data
 	 * in "CD Quality" format, scaled to the range 
 	 * [-1, 1]
-	 * @param name a {@code String} to be associated
+	 * @param name - a {@code String} to be associated
 	 * with the {@code AudioCue}
-	 * @param polyphony an {@code int} specifying 
+	 * @param polyphony - an {@code int} specifying 
 	 * the maximum number of concurrent instances
 	 * @return AudioCue
 	 */
@@ -251,27 +354,21 @@ public class AudioCue implements AudioMixerTrack
 	}
 	
 	/**
-	 * Creates and returns a new AudioCue. A {@code URL} 
-	 * for a WAV file to be loaded is provided. At this
-	 * point, only one format, known as "CD Quality", is
-	 * supported: 44100 frames per second, 16-bit encoding, 
-	 * stereo, little-endian. The maximum number of 
-	 * concurrent playing instances is given as
-	 * the {@code polyphony} argument. The {@code polyphony}
-	 * value can not be changed. A large value may require
-	 * additional buffering and result in noticeable lag
-	 * in order to prevent drop outs.
-	 * <p>
-	 * The file name provided by the URL is automatically
-	 * used as the name for the {@code AudioCue}, but can 
-	 * be changed via the method {@code setName}.
+	 * Creates and returns a new {@code AudioCue}. The file
+	 * designated by the {@code URL} argument is loaded and
+	 * held in memory. Only one format, known as "CD Quality",
+	 * is supported: 44100 frames per second, 16-bit encoding, 
+	 * stereo, little-endian. The maximum number of concurrent
+	 * playing instances is given as the {@code polyphony} argument.
+	 * The file name is derived from the {@code URL} argument, but 
+	 * can be changed via the method {@code setName}.
 	 * 
-	 * @param url a {@code URL} for the source file 
-	 * @param polyphony an {@code int} specifying 
-	 * the maximum number of concurrent instances
+	 * @param url       - a {@code URL} for the source file 
+	 * @param polyphony - an {@code int} specifying the maximum 
+	 *                    number of concurrent instances
 	 * @return AudioCue
-	 * @throws UnsupportedAudioFileException if the media
-	 * is not a WAV file of "CD Quality"
+	 * @throws UnsupportedAudioFileException if the media being loaded
+	 * 					is not 44100 fps, 16-bit, stereo, little-endian
 	 * @throws IOException if unable to load the file
 	 */
 	public static AudioCue makeStereoCue(URL url, int polyphony) 
@@ -288,12 +385,11 @@ public class AudioCue implements AudioMixerTrack
 	/**
 	 * Private constructor, used internally.
 	 * 
-	 * @param cue a {@code float} array of audio data
-	 * in "CD Quality" format, scaled to the range [-1..1]
-	 * @param name a {@code String} to be associated
-	 * with the {@code AudioCue}
-	 * @param polyphony an {@code int} specifying 
-	 * the maximum number of concurrent instances
+	 * @param cue       - a {@code float} array of stereo, signed, normalized PCM
+	 * @param name      - a {@code String} to be associated with the 
+	 * 				      {@code AudioCue} 
+	 * @param polyphony - an {@code int} specifying the maximum number of 
+	 *                    concurrent instances
 	 */
 	private AudioCue(float[] cue, String name, int polyphony)
 	{
@@ -312,9 +408,7 @@ public class AudioCue implements AudioMixerTrack
 			availables.add(cursors[i]);
 		}
 		
-		// default readBuffer (added here to help with
-		// testing--so we don't have to open() the cue to
-		// inspect the results of the readTrack() method.
+		// default readBuffer
 		readBuffer = new float[DEFAULT_BUFFER_FRAMES * 2];
 		
 		// default pan calculation function
@@ -324,8 +418,8 @@ public class AudioCue implements AudioMixerTrack
 	}
 	
 	// Currently assumes stereo format ("CD Quality") 
-	private static float[] loadURL(URL url) throws 
-		UnsupportedAudioFileException, IOException
+	private static float[] loadURL(URL url) throws UnsupportedAudioFileException, 
+			IOException
 	{
 		AudioInputStream ais = AudioSystem.getAudioInputStream(url);
 
@@ -372,56 +466,105 @@ public class AudioCue implements AudioMixerTrack
 	}	
 	
 	/**
-	 * Allocates resources for media play, using default
-	 * {@code Mixer}, thread priority and buffer size values. The
-	 * {@code AudioCueListener} will broadcast a notification
-	 * using the method {@code audioCueOpened}. 
+	 * Readies this {@code AudioCue} for media play by instantiating, registering,
+	 * and running the inner class {@code AudioCuePlayer} with default settings.
+	 * Internally, the registered {@code AudioCuePlayer} instance obtains and 
+	 * configures a {@code javax.sound.sampled.SourceDataLine} to write to the 
+	 * default system {@code javax.sound.sampled.Mixer}, and will make use of the default internal 
+	 * buffer size of 1024 PCM frames, and will run with the default thread priority 
+	 * setting of 10.
+	 * <p>
+	 * Once completed, this {@code AudioCue} is marked open and the 
+	 * {@code AudioCueListener.audioCueOpened} method is called on every registered 
+	 * {@code AudioCueListener}.
 	 * 
-	 * @throws IllegalStateException if the player is already
-	 * open
-	 * @throws LineUnavailableException if unable to obtain a
-	 * {@code SourceDataLine} for the player
+	 * @throws IllegalStateException if this {@code AudioCue} is already open
+	 * @throws LineUnavailableException if unable to obtain a {@code SourceDataLine} 
+	 *                         for the player, which could occur if the Mixer does
+	 *                         not support the {@code AudioFormat} implemented by 
+	 *                         {@code AudioCue}
+	 * @see #audioFormat
+	 * @see #open(Mixer, int, int)
+	 * @see AudioCueListener#audioCueOpened(long, int, int, AudioCue)
 	 */
-	public void open() throws IllegalStateException, LineUnavailableException
+	public void open() throws LineUnavailableException
 	{
 		open(null, DEFAULT_BUFFER_FRAMES, Thread.MAX_PRIORITY);
 	}
 	
 	/**
-	 * Allocates resources for media play, using the 
-	 * default {@code Mixer} and thread priority values, while 
-	 * setting the internal a custom buffer size. The
-	 * {@code AudioCueListener} will broadcast a notification
-	 * using the method {@code audioCueOpened}. 
+	 * Readies this {@code AudioCue} for media play by instantiating, registering,
+	 * and running the inner class {@code AudioCuePlayer} with a custom buffer 
+	 * size. As the performance of the AudioCuePlayer is subject to tradeoffs 
+	 * based upon the size of an internal buffer, a number of frames other than 
+	 * the default of 1024 can be specified with this method. A lower value responds
+	 * more quickly to dynamic requests, but is more prone to underflow which can
+	 * result in audible drop outs. The registered {@code AudioCuePlayer} instance 
+	 * obtains and configures a {@code javax.sound.sampled.SourceDataLine} to write 
+	 * to the default system {@code javax.sound.sampled.Mixer}, and will run with 
+	 * the default thread priority setting of 10.
+	 * <p>
+	 * Once completed, this {@code AudioCue} is marked open and the 
+	 * {@code AudioCueListener.audioCueOpened} method is called on every registered 
+	 * {@code AudioCueListener}.
 	 * 
-	 * @param bufferFrames number of stereo frames
-	 * @throws IllegalStateException if the player is already
-	 * open
-	 * @throws LineUnavailableException if unable to obtain a
-	 * {@code SourceDataLine} for the player
+	 * @param bufferFrames - an {@code int} specifying the size of the internal
+	 * 						 buffer in PCM frames
+	 * @throws IllegalStateException if this {@code AudioCue} is already open
+	 * @throws LineUnavailableException if unable to obtain a {@code SourceDataLine} 
+	 *                         for the player, which could occur if the Mixer does
+	 *                         not support the {@code AudioFormat} implemented by 
+	 *                         {@code AudioCue}
+	 * @see #audioFormat
+	 * @see #open(Mixer, int, int)
+	 * @see AudioCueListener#audioCueOpened(long, int, int, AudioCue)
 	 */
-	public void open(int bufferFrames) throws IllegalStateException, LineUnavailableException
+	public void open(int bufferFrames) throws LineUnavailableException
 	{
 		open(null, bufferFrames, Thread.MAX_PRIORITY);
 	}
 	
 	/**
-	 * Allocates resources for media play, setting explicit values to
-	 * over ride the defaults. The {@code AudioCueListener}  will 
-	 * broadcast a notification using the method {@code audioCueOpened}. 
+	 * Readies this {@code AudioCue} for media play by instantiating, registering,
+	 * and running the inner class {@code AudioCuePlayer} with explicit settings
+	 * for the {@code javax.sound.sampled.Mixer}, the number of PCM frames used 
+	 * in an internal buffer, and the priority level for the thread created to 
+	 * handle the media play. Internally, the registered {@code AudioCuePlayer} 
+	 * instance obtains and configures a {@code javax.sound.sampled.SourceDataLine}
+	 * to write to the provided {@code javax.sound.sampled.Mixer} rather than the 
+	 * default system Mixer. As the performance of the AudioCuePlayer is subject
+	 * to tradeoffs based upon the size of an internal buffer, a number of frames
+	 * other than the default of 1024 can be specified. A lower value responds
+	 * more quickly to dynamic requests, but is more prone to underflow which can
+	 * result in audible drop outs. While the default thread priority setting of 
+	 * 10 is generally safe given that to audio processing spending a majority of
+	 * its time in a blocked state, this method allows specification of a lower 
+	 * priority setting.
 	 * 
-	 * @param mixer a {@code javax.sound.sampled.Mixer}
-	 * @param bufferFrames an {@code int} specifying the size of the 
-	 * internal buffer
-	 * @param threadPriority an {@code int} specifying the priority
-	 * level of the thread, ranging [1, 10]
-	 * @throws LineUnavailableException if unable to obtain a
-	 * {@code SourceDataLine} for the player
-	 * @throws IllegalStateException if the {@code AudioCue} is 
-	 * already open
+	 * Once completed, this {@code AudioCue} is marked open and the 
+	 * {@code audioCueOpened} method is called on every registered 
+	 * {@code AudioCueListener}.
+	 * 
+	 * @param mixer          - a {@code javax.sound.sampled.Mixer}. If {@code null}, 
+	 *  					   the system default mixer is used.
+	 * @param bufferFrames   - an {@code int} specifying the size of the internal
+	 * 						   buffer in PCM frames
+	 * @param threadPriority - an {@code int} specifying the priority level of the
+	 *                         thread, clamped to the range 1 to 10 inclusive
+	 * @throws IllegalArgumentException if the thread priority is not in the range 
+	 * 						   MIN_PRIORITY to MAX_PRIORITY.                        
+	 * @throws IllegalStateException if this {@code AudioCue} is already open
+	 * @throws LineUnavailableException if unable to obtain a {@code SourceDataLine} 
+	 *                         for the player, which could occur if the Mixer does
+	 *                         not support the {@code AudioFormat} implemented by 
+	 *                         {@code AudioCue}
+	 * @see #audioFormat
+	 * @see AudioCueListener
+	 * @see javax.sound.sampled.Mixer
+	 * @see AudioCueListener#audioCueOpened(long, AudioCue)
 	 */
 	public void open(Mixer mixer, int bufferFrames, int threadPriority) 
-		throws LineUnavailableException, IllegalStateException
+		throws LineUnavailableException
 	{
 		if (playerRunning) 
 		{
@@ -429,10 +572,15 @@ public class AudioCue implements AudioMixerTrack
 					"Already open.");
 		}
 		
-		AudioCuePlayer player = new AudioCuePlayer(mixer, bufferFrames);
+		if (threadPriority < Thread.MIN_PRIORITY 
+				|| threadPriority > Thread.MAX_PRIORITY) {
+			throw new IllegalArgumentException("Thread priority out of range.");
+		}
+		
+		player = new AudioCuePlayer(mixer, bufferFrames);
 		Thread t = new Thread(player);
 
-		t.setPriority(threadPriority);     
+		t.setPriority(Math.max(1, Math.min(10, threadPriority)));
 		playerRunning = true;
 		t.start();
 		
@@ -440,50 +588,63 @@ public class AudioCue implements AudioMixerTrack
 	}
 	
 	/**
-	 * Assigns an {@code AudioMixer}, instead of an internal
-	 * AudioCuePlay, for media playback. The buffer size
-	 * and thread priority of the {@code AudioMixer} will be
-	 * used for playback. The {@code AudioCueListener} will 
-	 * broadcast a notification using the method 
-	 * {@code audioCueOpened}. 
+	 * Registers an {@code AudioMixer}, instead of an inner class
+	 * {@code AudioCuePlayer}, to handle the media play. This 
+	 * {@code AudioCue} will be added as an {@code AudioMixerTrack}
+	 * to the registered {@code AudioMixer}, and the buffer size and
+	 * the thread priority of the {@code AudioMixer} will take effect
+	 * for media play. 
+	 * <p>
+	 * Once completed, the {@code AudioCue} is marked open and the 
+	 * {@code AudioCueListener.audioCueOpened} method is called on every 
+	 * registered {@code AudioCueListener}.
 	 * 
-	 * @param audioMixer
-	 * @throws IllegalStateException
+	 * @param audioMixer - the {@code AudioMixer} that will handle media output
+	 * 					   for this {@code AudioCue}
+	 * @throws IllegalStateException if the {@code AudioCue} is already open
+	 * @see AudioMixer
+	 * @see AudioCueListener#audioCueOpened(long, AudioCue)
 	 */
-	public void open(AudioMixer audioMixer) throws IllegalStateException
+	public void open(AudioMixer audioMixer)
 	{
 		if (playerRunning) 
 		{
-			throw new IllegalStateException(
-					"Already open.");
+			throw new IllegalStateException("Already open.");
 		}
 		playerRunning = true;
+		// default: AudioCueTrack is open
+		trackRunning = true;
 		this.audioMixer = audioMixer;
 		
 		// assigned size is frames * stereo
-		readBuffer = new float[audioMixer.bufferSize * 2];
+		readBuffer = new float[audioMixer.bufferFrames * 2];
 		
 		audioMixer.addTrack(this);
 		audioMixer.updateTracks();
 		
 		broadcastOpenEvent(audioMixer.threadPriority, 
-				audioMixer.bufferSize, name);
+				audioMixer.bufferFrames, name);
 	}
 	
 	/**
-	 * Releases resources allocated for media play. The
-	 * {@code AudioCueListener} will broadcast a notification
-	 * using the method {@code audioCueClosed}. 
+	 * Releases resources allocated for media play. If the {@code AudioCue}
+	 * was opened as a stand alone cue, its inner class {@code AudioPlayer}
+	 * runnable will be allowed to end, and allocated resources will be 
+	 * cleaned up. If the {@code AudioCue} was opened as a track on an 
+	 * {@code AudioMixer}, the track will be removed from the {@code AudioMixer}.
+	 * <p>
+	 * Once completed, the {@code AudioCue} is marked closed and the
+     * {@code AudioCueListener.audioCueClosed} method is called on every 
+     * registered {@code AudioCueListener}.
 	 *  
-	 * @throws IllegalStateException if player is already
-	 * closed
+	 * @throws IllegalStateException if player is already closed
+	 * @see AudioCueListener#audioCueClosed(long, AudioCue)
 	 */
-	public void close() throws IllegalStateException
+	public void close()
 	{
 		if (playerRunning == false)
 		{
-			throw new IllegalStateException(
-				"Already closed.");
+			throw new IllegalStateException("Already closed.");
 		}
 
 		if (audioMixer != null)
@@ -491,6 +652,9 @@ public class AudioCue implements AudioMixerTrack
 			audioMixer.removeTrack(this);
 			audioMixer.updateTracks();
 			audioMixer = null;
+		} else {
+			// allows player thread to end
+			player.stopRunning();
 		}
 		
 		playerRunning = false;
@@ -521,67 +685,86 @@ public class AudioCue implements AudioMixerTrack
 
 	
 	/**
-	 * Obtains an {@code int} hook from a pool of available 
-	 * instances.
-	 * The {@code AudioCueListener} method {@code obtainedInstance} 
-	 * will be called. If no playable instances are available,
-	 * the method returns -1. An instance obtained by this 
-	 * method does <em>not</em> recycle back into the pool of
-	 * available instances when it finishes playing. To put the 
-	 * instance back in the pool of availables, the method
-	 * {@code releaseInstance} must be called.
+	 * Obtains an {@code int} instance identifier from a pool of 
+	 * available instances and marks this instance as 'active'. If 
+	 * no playable instances are available, the method returns -1.
+	 * <p>
+	 * The instance designated by this identifier is 
+	 * <em>not</em> automatically recycled back into 
+	 * the pool of available instances when it finishes playing. 
+	 * To put the instance back in the pool of available instances, 
+	 * the method {@code releaseInstance} must be called. To 
+	 * change the behavior so that the instance <em>is</em> 
+	 * returned to the pool when it plays completely to the end,
+	 * use {@code setRecycleWhenDone(int, boolean)}.
+	 * <p>
+	 * When executed, the {@code AudioCueListener.instanceEventOccurred} 
+	 * method will be called with an argument of 
+	 * {@code AudioCueInstanceEvent.Type.OBTAIN_INSTANCE}.
 	 * 
-	 * @return an {@code int} hook to the playing instance, or -1
-	 * if no instances are available
+	 * @return an {@code int} instance ID for an active instance, 
+	 *         or -1 if no instances are available
+	 * @see #releaseInstance(int)
+	 * @see #setRecycleWhenDone(int, boolean)
+	 * @see AudioCueListener#instanceEventOccurred(AudioCueInstanceEvent)
+	 * @see AudioCueInstanceEvent.Type#OBTAIN_INSTANCE
 	 */
 	public int obtainInstance()
 	{
-		AudioCueCursor aci = availables.pollLast();
+		AudioCueCursor acc = availables.pollLast();
 		
-		if (aci == null) return -1;
+		if (acc == null) return -1;
 		else 
 		{
-			aci.isActive = true;
-			broadcastCreateInstanceEvent(aci);
-			return aci.hook;
+			acc.isActive = true;
+			broadcastCreateInstanceEvent(acc);
+			return acc.id;
 		}
 	}
 	
 	/**
-	 * Releases an {@code AudioCue} instance, making 
-	 * it available for a new {@code play} method.
-	 * The {@code AudioCueListener} method {@code releaseInstance} 
-	 * will be called.
+	 * Releases an {@code AudioCue} instance, making  it available
+	 * as a new concurrently playing instance. Once released, and
+	 * back in the pool of available instances, an instance cannot 
+	 * receive updates. 
+	 * <p>
+	 * When executed, the {@code AudioCueListener.instanceEventOccurred} 
+	 * method will be called with an argument of 
+	 * {@code AudioCueInstanceEvent.Type.RELEASE_EVENT}.
 	 * 
-	 * @param instanceHook {@code int} hook identifying the cue 
-	 * instance to be released
+	 * @param instanceID - an {@code int} identifying the instance 
+	 *                       to be released
+	 * @see #obtainInstance()
+	 * @see AudioCueListener#instanceEventOccurred(AudioCueInstanceEvent)
+	 * @see AudioCueInstanceEvent.Type#RELEASE_INSTANCE
+	 * 
 	 */
-	public void releaseInstance(int instanceHook)
+	public void releaseInstance(int instanceID)
 	{
-		cursors[instanceHook].resetInstance();
-		availables.offerFirst(cursors[instanceHook]);
-		broadcastReleaseEvent(cursors[instanceHook]);
+		cursors[instanceID].resetInstance();
+		availables.offerFirst(cursors[instanceID]);
+		broadcastReleaseEvent(cursors[instanceID]);
 	}
 	
 	/**
-	 * Plays an available {@code AudioCue} instance 
-	 * from the start of the audio data, at full volume, center
-	 * pan, and at normal speed, or, returns -1 if no 
-	 * {@code AudioCue} instance is available. If an 
-	 * {@code AudioCue} instance is able to play, 
-	 * the {@code AudioCueListener} methods 
-	 * {@code createInstance} and {@code startInstance}
-	 * will be called. When the instance finishes playing
-	 * it will be automatically recycled into the pool of
-	 * available instances.
+	 * Plays an {@code AudioCue} instance from the beginning, with
+	 * default values: full volume, center pan and at normal speed, 
+	 * and returns an {@code int} identifying the instance, or, 
+	 * returns -1 if no {@code AudioCue} instance is available. 
 	 * <p>
-	 * For best response time (lowest latency), the {@code play}
-	 * method should be called on an {@code AudioCue} that has 
-	 * already been opened, as opening requires the creation
-	 * of an audio thread and the acquisition of an output line. 
+	 * If an {@code AudioCue} instance is able to play, the 
+	 * {@code AudioCueListener.instanceEventOccurred} method
+	 * will be called twice, with arguments
+     * {@code AudioCueInstanceEvent.Type.OBTAIN_INSTANCE} and
+	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}. This
+	 * instance will be set to automatically recycle back into the 
+	 * pool of available instances when playing completes.
 	 * 
-	 * @return an {@code int} hook to the playing instance,
-	 * or -1 if no instance is available
+	 * @return an {@code int} identifying the playing instance,
+	 *         or -1 if no instance is available
+	 * @see AudioCueListener#instanceEventOccurred(AudioCueInstanceEvent)
+	 * @see AudioCueInstanceEvent.Type#OBTAIN_INSTANCE
+	 * @see AudioCueInstanceEvent.Type#START_INSTANCE
 	 */
 	public int play()
 	{
@@ -589,25 +772,25 @@ public class AudioCue implements AudioMixerTrack
 	}	
 	
 	/**
-	 * Plays an available {@code AudioCue} instance 
-	 * from the start of the audio data at the given volume, at 
-	 * center pan, and at normal speed, or, returns -1 if no 
-	 * {@code AudioCue} instance is available.  If an 
-	 * {@code AudioCue} instance is able to play, 
-	 * the {@code AudioCueListener} methods 
-	 * {@code createInstance} and {@code startInstance}
-	 * will be called. When the instance finishes playing
-	 * it will be automatically recycled into the pool of
-	 * available instances.
+	 * Plays an {@code AudioCue} instance from the beginning, at 
+	 * the given volume, at center pan, and at normal speed, and
+	 * returns an {@code int} identifying the instance, or, returns
+	 * -1 if no {@code AudioCue} instance is available. 
 	 * <p>
-	 * For best response time (lowest latency), the {@code play}
-	 * method should be called on an {@code AudioCue} that has 
-	 * already been opened, as opening requires the creation
-	 * of an audio thread and the acquisition of an output line. 
+	 * If an {@code AudioCue} instance is able to play, the 
+	 * {@code AudioCueListener.instanceEventOccurred} method 
+	 * will be called twice, with arguments
+     * {@code AudioCueInstanceEvent.Type.OBTAIN_INSTANCE} and
+	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}. This
+	 * instance will be set to automatically recycle back into the 
+	 * pool of available instances when playing completes.
 	 *  
-	 * @param volume a {@code double} in the range [0, 1]
-	 * @return an {@code int} hook to the playing instance,
-	 * or -1 if no instance is available
+	 * @param volume - a {@code double} in the range [0, 1]
+	 * @return an {@code int} identifying the playing instance,
+	 *         or -1 if no instance is available
+	 * @see AudioCueListener#instanceEventOccurred(AudioCueInstanceEvent)
+	 * @see AudioCueInstanceEvent.Type#OBTAIN_INSTANCE
+	 * @see AudioCueInstanceEvent.Type#START_INSTANCE
 	 */
 	public int play(double volume)
 	{
@@ -615,29 +798,30 @@ public class AudioCue implements AudioMixerTrack
 	}	
 	
 	/**
-	 * Plays an available {@code AudioCue} instance from 
-	 * the start of the audio data, at center pan, and at the
-	 * specified speed, or, returns -1 if no {@code AudioCue}
-	 * instance is available. If an {@code AudioCue} instance 
-	 * is able to play, the {@code AudioCueListener} 
-	 * notifications {@code createInstance} and 
-	 * {@code startInstance} will be sent to all registered
-	 * listeners. When the instance finishes playing
-	 * it will be automatically recycled into the pool of
-	 * available instances.
+	 * Plays an {@code AudioCue} instance from the beginning, at 
+	 * the given volume, pan, speed and number of repetitions, and 
+	 * returns an {@code int} identifying the instance, or, returns 
+	 * -1 if no {@code AudioCue} instance is available. 
 	 * <p>
-	 * For best response time (lowest latency), the {@code play}
-	 * method should be called on an {@code AudioCue} that has 
-	 * already been opened, as opening requires the creation
-	 * of an audio thread and the acquisition of an output line. 
+	 * If an {@code AudioCue} instance is able to play, the 
+	 * {@code AudioCueListener.instanceEventOccurred} method 
+	 * will be called twice, with arguments
+     * {@code AudioCueInstanceEvent.Type.OBTAIN_INSTANCE} and
+	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}. This
+	 * instance will be set to automatically recycle back into the 
+	 * pool of available instances when playing completes.
 	 * 
-	 * @param volume a {@code double} within the range [0, 1]
-	 * @param pan a {@code double} within the range [-1, 1]
-	 * @param speed a {@code double} that becomes the frame rate 
-	 * @param loop an {@code int} that specifies a number of 
-	 * additional plays (looping)
-	 * @return an {@code int} hook to the playing instance, 
-	 * or -1 if no instance is available
+	 * @param volume - a {@code double} within the range [0, 1]
+	 * @param pan    - a {@code double} within the range [-1, 1]
+	 * @param speed  - a {@code double} factor that is multiplied 
+	 *                 to the frame rate 
+	 * @param loop   - an {@code int} that specifies a number of 
+	 * 				   <em>additional</em> plays (looping)
+	 * @return an {@code int} identifying the playing instance, 
+	 *         or -1 if no instance is available
+	 * @see AudioCueListener#instanceEventOccurred(AudioCueInstanceEvent)
+	 * @see AudioCueInstanceEvent.Type#OBTAIN_INSTANCE
+	 * @see AudioCueInstanceEvent.Type#START_INSTANCE
 	 */
 	public int play(double volume, double pan, double speed, int loop)
 	{
@@ -661,360 +845,340 @@ public class AudioCue implements AudioMixerTrack
 	
 	/**
 	 * Plays the specified {@code AudioCue} instance from its current 
-	 * position within the sound cue, using current volume, pan,
-	 * and speed settings. The {@code AudioCueListener} method 
-	 * {@code startInstance} will be called.
+	 * position in the data, using existing volume, pan, and speed 
+	 * settings.
+	 * <p>
+	 * If an {@code AudioCue} instance is able to start, the 
+	 * {@code AudioCueListener.instanceEventOccurred} method 
+	 * will be called with the argument
+	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}.
 	 * 
-	 * @param instanceHook an {@code int} used to identify an 
-	 * {@code AudioCue} instance
+	 * @param instanceID - an {@code int} used to identify an 
+	 *                     {@code AudioCue} instance
 	 * @throws IllegalStateException if instance is not active
-	 * or if instance is playing
+	 *         or if instance is already playing
+	 * @see AudioCueListener#instanceEventOccurred(AudioCueInstanceEvent)
+	 * @see AudioCueInstanceEvent.Type#START_INSTANCE
 	 */
-	public void start(int instanceHook) throws IllegalStateException
+	public void start(int instanceID)
 	{
-		if (!cursors[instanceHook].isActive || 
-			cursors[instanceHook].isPlaying)
+		if (!cursors[instanceID].isActive || 
+			cursors[instanceID].isPlaying)
 		{
-			throw new IllegalStateException("Illegal state, "
-					+ name + ", instance:" + instanceHook);
+			throw new IllegalStateException(name + " instance: "
+					+ instanceID + " is inactive");
 		}
 		
-		cursors[instanceHook].isPlaying = true;
-		broadcastStartEvent(cursors[instanceHook]);
+		cursors[instanceID].isPlaying = true;
+		broadcastStartEvent(cursors[instanceID]);
 	};
 	
 	/**
-	 * Sends message to indicate that the playing of the cue
-	 * associated with the hook should be paused. The 
-	 * {@code AudioCueListener} method {@code stopInstance} 
-	 * will be called. Sending this message to an already
-	 * stopped instance does nothing. Once an instance is 
-	 * stopped, it will be left in an active state until
-	 * it is explicitly released.
+	 * Sends message to indicate that the playing of the instance
+	 * associated with the {@code int} identifier should be halted.
+	 * Calling this method on an already stopped instance does 
+	 * nothing. The instance is left in an open state.
+	 * <p>
+	 * The {@code AudioCueListener.instanceEventOccurred} method
+	 * will be called with the argument
+	 * {@code AudioCueInstanceEvent.Type.STOP_INSTANCE}.
 	 * 
-	 * @param instanceHook an {@code int} used to identify an 
-	 * {@code AudioCue} instance
+	 * @param instanceID - an {@code int} used to identify an 
+	 *                     {@code AudioCue} instance
 	 * @throws IllegalStateException if instance is not active
+	 * @see AudioCueListener#instanceEventOccurred(AudioCueInstanceEvent)
+	 * @see AudioCueInstanceEvent.Type#STOP_INSTANCE
 	 */
-	public void stop(int instanceHook) throws IllegalStateException
+	public void stop(int instanceID)
 	{
-		if (!cursors[instanceHook].isActive)
+		if (!cursors[instanceID].isActive)
 		{
-			throw new IllegalStateException("Illegal state, "
-					+ name + ", instance:" + instanceHook);
+			throw new IllegalStateException(name + " instance: "
+					+ instanceID + " is inactive");
 		}
 		
-		cursors[instanceHook].isPlaying = false;
-		broadcastStopEvent(cursors[instanceHook]);
-		cursors[instanceHook].recycleWhenDone = false;
+		cursors[instanceID].isPlaying = false;
+		broadcastStopEvent(cursors[instanceID]);
 	};
 		
-	/**
-	 * Sets the play position ("play head") to a 
-	 * specified sample frame. The frame count is zero-based.
-	 * The new play position can include a fractional sample 
-	 * amount. The new sample frame position will be clamped to
-	 * a value that lies within the {@code AudioCue}. When 
-	 * the instance is restarted, it will commence from this 
-	 * sample frame.
-	 * 
-	 * @param instanceHook an {@code int} used to identify an 
-	 * {@code AudioCue} instance
-	 * @param frame the sample frame number from which play will 
-	 * commence when the next {@code start} method is executed
-	 * @throws IllegalStateException if instance is not active
-	 * or if instance is playing
-	 */
-	public void setFramePosition(int instanceHook, double frame)
-		throws IllegalStateException
-	{
-		if (!cursors[instanceHook].isActive || 
-				cursors[instanceHook].isPlaying)
-		{
-			throw new IllegalStateException("Illegal state, "
-					+ name + ", instance:" + instanceHook);
-		}
-		
-		cursors[instanceHook].idx = Math.max(0, Math.min(
-				getFrameLength() - 1, (float)frame));
-	};
-	
 	/**
 	 * Returns the current sample frame number. The frame count
 	 * is zero-based. The position may lie in between two frames.
 	 * 
-	 * @param instanceHook an {@code int} used to identify an 
-	 * {@code AudioCue} instance
+	 * @param instanceID - an {@code int} used to identify an 
+	 *                     {@code AudioCue} instance
 	 * @return a {@code double} corresponding to the current 
-	 * sample frame position
+	 *         sample frame position
 	 * @throws IllegalStateException if instance is not active
+	 * @see #setFramePosition(int, double)
+	 * @see #setMicrosecondPosition(int, double)
+	 * @see #setFractionalPosition(int, double)
 	 */
-	public double getFramePosition(int instanceHook)
+	public double getFramePosition(int instanceID)
 	{
-		if (!cursors[instanceHook].isActive)
+		if (!cursors[instanceID].isActive)
 		{
 			throw new IllegalStateException(name + " instance: "
-					+ instanceHook + " is inactive");
+					+ instanceID + " is inactive");
 		}
 		
-		return cursors[instanceHook].idx;
+		return cursors[instanceID].cursor;
 	}
 	
 	/**
-	 * Repositions the play position ("play head") of the
-	 * given {@code AudioCue} instance to the sample frame that 
-	 * corresponds to the specified elapsed time in microseconds. 
-	 * The new play position can include a fractional sample 
-	 * amount. The new sample frame position will be clamped to
-	 * a value that lies within the {@code AudioCue}. When the 
-	 * instance is restarted, it will commence from this 
-	 * sample frame.
+	 * Sets the play position ("play head") to a specified 
+	 * sample frame location. The frame count is zero-based.
+	 * The play position can be a fractional amount, lying 
+	 * between two frames.
+	 * <p>
+	 * The input frame position will be clamped to a value that 
+	 * lies within or at the start or end of the media data. When 
+	 * the instance is next started, it will commence from this 
+	 * position.
+	 * <p>
+	 * An instance cannot have its position changed if it is
+	 * currently playing. An attempt to do so will throw an
+	 * {@code IllegalStateException}.
 	 * 
-	 * @param instanceHook an {@code int} used to identify an 
-	 * {@code AudioCue} instance
-	 * @param microseconds an {@code int} in microseconds that
-	 * corresponds to the desired starting point for the 
-	 * {@code AudioCue} instance
+	 * @param instanceID - an {@code int} used to identify an 
+	 *                     {@code AudioCue} instance
+	 * @param frame      - a {@code double} giving the frame position 
+	 * 					   from which play will commence if the 
+	 *                     {@code start} method is executed
 	 * @throws IllegalStateException if instance is not active
-	 * or if instance is playing
+	 *         or if the instance is playing
+	 * @see #getFramePosition(int)
 	 */
-	public void setMicrosecondPosition(int instanceHook, 
+	public void setFramePosition(int instanceID, double frame)
+	{
+		if (!cursors[instanceID].isActive || 
+				cursors[instanceID].isPlaying)
+		{
+			throw new IllegalStateException(name + " instance: "
+					+ instanceID + " is inactive");
+		}
+		
+		cursors[instanceID].cursor = Math.max(0, Math.min(
+				getFrameLength() - 1, (float)frame));
+	};
+	
+	/**
+	 * Repositions the play position ("play head") of the
+	 * designated {@code AudioCue} instance to the frame that 
+	 * corresponds to the specified elapsed time in microseconds. 
+	 * The new play position can be a fractional amount, lying 
+	 * between two frames.
+	 * <p>
+	 * The input microsecond position will be clamped to a
+	 * frame that lies within or is located at the start or end 
+	 * of the media data. When the instance is next started, it 
+	 * will commence from this position.
+	 * <p>
+	 * An instance cannot have its position changed if it is
+	 * currently playing. An attempt to do so will throw an
+	 * {@code IllegalStateException}.
+	 *
+	 * @param instanceID   - an {@code int} used to identify an 
+	 *                       {@code AudioCue} instance
+	 * @param microseconds - an {@code int} in microseconds that
+	 *                       corresponds to a position in the  
+	 *                       audio media
+	 * @throws IllegalStateException if instance is not active
+	 * 		   or if instance is playing
+	 * @see #getFramePosition(int)
+	 */
+	public void setMicrosecondPosition(int instanceID, 
 			int microseconds)
 	{
-		if (!cursors[instanceHook].isActive || 
-				cursors[instanceHook].isPlaying)
+		if (!cursors[instanceID].isActive || 
+				cursors[instanceID].isPlaying)
 		{
-			throw new IllegalStateException("Illegal state, "
-					+ name + ", instance:" + instanceHook);
+			throw new IllegalStateException(name + " instance: "
+					+ instanceID + " is inactive");
 		}
 
 		float frames = (audioFormat.getFrameRate() * microseconds) 
 				/ 1000_000f;
-		cursors[instanceHook].idx = 
+		cursors[instanceID].cursor = 
 				Math.max(0,	Math.min(cueFrameLength, frames));
 	};
 	
 	/**
 	 * Repositions the play position ("play head") of the
-	 * given {@code AudioCue} instance to the sample frame that 
+	 * designated {@code AudioCue} instance to the frame that 
 	 * corresponds to the specified elapsed fractional 
 	 * part the total audio cue length. The new play position can
-	 * include a fractional sample amount. Arguments are clamped 
-	 * to the range [0..1]. When restarted, the audio cue will 
-	 * commence from the new sample frame position.
+	 * be a fractional amount, lying between two frames. 
+	 * <p>
+	 * The fractional position argument is clamped to the range 
+	 * [0..1], where 1 corresponds to 100% of the media.  When 
+	 * restarted, the instance will commence from the new 
+	 * sample frame position.
+	 * <p>
+	 * An instance cannot have its position changed if it is
+	 * currently playing. An attempt to do so will throw an
+	 * {@code IllegalStateException}.
 	 * 
-	 * @param instanceHook an {@code int} used to identify the 
-	 * {@code AudioCue} instance
-	 * @param normal a {@code double} in the range [0..1] that 
-	 * corresponds to the desired starting point for the 
-	 * {@code AudioCue} instance
+	 * @param instanceID - an {@code int} used to identify the 
+	 * 		               {@code AudioCue} instance
+	 * @param normal     - a {@code double} in the range [0..1]  
+	 *                     that corresponds to a position in 
+	 *                     the media
 	 * @throws IllegalStateException if instance is not active
-	 * or if instance is playing
+	 *         or if instance is playing
+	 * @see #getFramePosition(int)
 	 */
-	public void setFractionalPosition(int instanceHook, double normal)
+	public void setFractionalPosition(int instanceID, double normal)
 	{
-		if (!cursors[instanceHook].isActive || 
-				cursors[instanceHook].isPlaying)
-		{
-			throw new IllegalStateException("Illegal state, "
-					+ name + ", instance:" + instanceHook);
-		}
-		
-		cursors[instanceHook].idx = (float)((cueFrameLength) * 
-				Math.max(0, Math.min(1, normal)));
-	};
-
-	/**
-	 * Sets the volume of the instance. Volumes can be altered 
-	 * while a cue is playing with a latency largely determined
-	 * by the buffer setting specified in the {@code open} method
-	 * in combination with a smoothing algorithm used to prevent
-	 * signal discontinuities that result in audible clicks or 
-	 * other forms of distortion. Volumes can be altered 
-	 * concurrently, with the most recent call 
-	 * taking precedence over and interrupting previous calls.
-	 * Arguments are clamped to the range [0..1] and 
-	 * thus can only diminish, not amplify, the volume.
-	 * <p> 
-	 * Internally, the volume argument is used as a factor that 
-	 * is directly multiplied against the media's sample values, 
-	 * and it should be noted that this linear scaling of 
-	 * sample values is not proportional with the human sense of 
-	 * loudness. 
-	 * 
-	 * @param  instanceHook  an {@code int} used to identify the 
-	 * {@code AudioCue} instance
-	 * @param  volume a {@code float} in the range [0, 1] to be 
-	 * multiplied against the audio sample values
-	 * @throws IllegalStateException if instance is not active
-	 */
-	public void setVolume(int instanceHook, double volume)
-		throws IllegalStateException
-	{	
-		if (!cursors[instanceHook].isActive)
+		if (!cursors[instanceID].isActive || 
+				cursors[instanceID].isPlaying)
 		{
 			throw new IllegalStateException(name + " instance: "
-					+ instanceHook + " is inactive");
+					+ instanceID + " is inactive");
 		}
-
-		cursors[instanceHook].targetVolume = 
-				(float)Math.min(1, Math.max(0, volume));
-		if (cursors[instanceHook].isPlaying)
-		{
-			cursors[instanceHook].targetVolumeIncr = 
-					(cursors[instanceHook].targetVolume 
-						- cursors[instanceHook].volume) 
-							/ VOLUME_STEPS;
-			cursors[instanceHook].targetVolumeSteps = VOLUME_STEPS;
-		}
-		else
-		{
-			cursors[instanceHook].volume = 
-					cursors[instanceHook].targetVolume;
-		}
+		
+		cursors[instanceID].cursor = (float)((cueFrameLength) * 
+				Math.max(0, Math.min(1, normal)));
 	};
 
 	/**
 	 * Returns a value indicating the current volume setting
 	 * of an {@code AudioCue} instance, ranging [0..1].
 	 * 
-	 * @param instanceHook an {@code int} used to identify the 
-	 * {@code AudioCue} instance
+	 * @param instanceID - an {@code int} used to identify the 
+	 *                     {@code AudioCue} instance
 	 * @return volume factor as a {@code double}
 	 * @throws IllegalStateException if instance is not active
+	 * @see #setVolume(int, double)
 	 */
-	public double getVolume(int instanceHook)
-		throws IllegalStateException
+	public double getVolume(int instanceID)
 	{
-		if (!cursors[instanceHook].isActive)
+		if (!cursors[instanceID].isActive)
 		{
 			throw new IllegalStateException(name + " instance: "
-					+ instanceHook + " is inactive");
+					+ instanceID + " is inactive");
 		}
 
-		return cursors[instanceHook].volume;
+		return cursors[instanceID].volume;
 	};
 
 	/**
-	 * Sets the pan of the instance, where 100% left corresponds 
-	 * to -1, 100% right corresponds to 1, and center = 0.  
-	 * The pan setting can be changed while a cue is playing 
-	 * with a latency largely determined by the buffer setting 
-	 * specified in the {@code open} method in combination with 
-	 * a smoothing algorithm used to prevent signal 
-	 * discontinuities that result in audible clicks or 
-	 * other forms of distortion. Pans can be altered 
-	 * concurrently, with the most recent call 
-	 * taking precedence over and interrupting previous calls.
-	 * Arguments are clamped to the range [-1, 1].
+	 * Sets the volume of the instance. Volumes can be altered 
+	 * while an instance is either playing or stopped. When a 
+	 * volume change is presented while the instance is playing, a 
+	 * smoothing algorithm used to prevent signal discontinuities 
+	 * that could result in audible clicks. If a second volume 
+	 * change arrives before the first change is completed, the 
+	 * most recent volume change takes precedence.
 	 * <p>
-	 * For stereo {@code AudioCue}s, a volume-based pan is 
-	 * performed. The calculation is performed by method 
-	 * specified by {@code AudioCue.Pan}.
+	 * Arguments are clamped to the range [0..1], with 0 denoting
+	 * silence and 1 denoting the natural volume of the sample. In 
+	 * other words, the volume control can only diminish the volume
+	 * of the media, not amplify it. Internally, the volume argument 
+	 * is used as a factor that is directly multiplied against the 
+	 * media's PCM values.
 	 * 
-	 * @param instanceHook an {@code int} used to identify the 
-	 * {@code AudioCue} instance
-	 * @param pan a {@code double} ranging from -1 to 1
+	 * @param  instanceID - an {@code int} used to identify the 
+	 * 						{@code AudioCue} instance
+	 * @param  volume     - a {@code float} in the range [0, 1]
+	 *                      multiplied against the audio values
 	 * @throws IllegalStateException if instance is not active
-	 * @see AudioCue.PanType
+	 * @see #getVolume(int)
 	 */
-	public void setPan(int instanceHook, double pan)
-		throws IllegalStateException
-	{
-		if (!cursors[instanceHook].isActive)
+	public void setVolume(int instanceID, double volume)
+	{	
+		if (!cursors[instanceID].isActive)
 		{
 			throw new IllegalStateException(name + " instance: "
-					+ instanceHook + " is inactive");
+					+ instanceID + " is inactive");
 		}
-		cursors[instanceHook].targetPan =
-				(float)Math.min(1, Math.max(-1, pan));
-		if (cursors[instanceHook].isPlaying)
+
+		cursors[instanceID].targetVolume = 
+				(float)Math.min(1, Math.max(0, volume));
+		if (cursors[instanceID].isPlaying)
 		{
-			cursors[instanceHook].targetPanIncr = 
-					(cursors[instanceHook].targetPan 
-						- cursors[instanceHook].pan) 
-							/ PAN_STEPS;
-			cursors[instanceHook].targetPanSteps = PAN_STEPS;
+			cursors[instanceID].targetVolumeIncr = 
+					(cursors[instanceID].targetVolume 
+						- cursors[instanceID].volume) 
+							/ VOLUME_STEPS;
+			cursors[instanceID].targetVolumeSteps = VOLUME_STEPS;
 		}
 		else
 		{
-			cursors[instanceHook].pan = 
-					cursors[instanceHook].targetPan;
+			cursors[instanceID].volume = 
+					cursors[instanceID].targetVolume;
 		}
 	};
 
 	/**
-	 * Returns a double in the range [-1, 1] where -1 
-	 * indicates 100% left and 1 indicates 100% right.
+	 * Returns a double in the range [-1, 1] where -1 corresponds
+	 * to 100% left, 1 corresponds to 100% right, and 0 
+	 * corresponds to center.
+	 * <p>
+	 * The calculations used to apply the pan are determined 
+	 * by the {@code PanType}.
 	 * 
-	 * @param instanceHook an {@code int} used to identify the 
-	 * {@code AudioCue} instance
+	 * @param instanceID - an {@code int} used to identify the 
+	 *                     {@code AudioCue} instance
 	 * @return the current pan value, ranging [-1, 1]
 	 * @throws IllegalStateException if instance is not active
+	 * @see #setPan(int, double)
+	 * @see PanType
+	 * @see #setPanType(PanType)
 	 */
-	public double getPan(int instanceHook) throws 
-		IllegalStateException
+	public double getPan(int instanceID)
 	{
-		if (!cursors[instanceHook].isActive)
+		if (!cursors[instanceID].isActive)
 		{
 			throw new IllegalStateException(name + " instance: "
-					+ instanceHook + " is inactive");
+					+ instanceID + " is inactive");
 		}
 		
-		return cursors[instanceHook].pan;
+		return cursors[instanceID].pan;
 	};
 
 	/**
-	 * Sets the play speed of the {@code AudioCue} instance. A 
-	 * faster speed results in both higher-pitched frequency 
-	 * content and a shorter duration. Play speeds can be 
-	 * altered in real time while a cue is playing with a latency
-	 * largely determined by the buffer setting specified in the 
-	 * {@code open} method in combination with a smoothing 
-	 * algorithm used to prevent signal discontinuities.
-	 * Speeds can be altered concurrently, with the most recent 
-	 * call taking precedence over and interrupting previous calls.
-	 * A speed of 1 will play the {@code AudioCue} instance at its 
-	 * originally recorded speed. A value of 2 will double the 
-	 * play speed, and a value of 0.5 will halve the play speed.
-	 * Arguments are clamped to values ranging from 8 times slower
-	 * to 8 times faster than unity, a range of [0.125, 8].
+	 * Sets the pan of the instance, where 100% left 
+	 * corresponds to -1, 100% right corresponds to 1, and 
+	 * center = 0. The pan setting can either be changed 
+	 * while a cue is either playing or stopped. If the instance
+	 * is playing, a smoothing algorithm used to prevent signal 
+	 * discontinuities that result in audible clicks. If a second
+	 * pan change arrives before the first change is completed, the 
+	 * most recent pan change takes precedence.
 	 * <p>
-	 * Note that the determination of what is an effective amount 
-	 * of speed-up or slow-down depends upon the frequency content
-	 * of the original sample, thus "safe bounds" for the speed
-	 * argument are difficult to specify. Thus, it is possible 
-	 * to enter values that result in signals that are either
-	 * too low or too high in frequency to be audible.
+	 * Arguments are clamped to the range [-1, 1]. The calculations 
+	 * used to apply the pan are determined by the {@code PanType}.
 	 * 
-	 * @param instanceHook an {@code int} used to identify an 
-	 * {@code AudioCue} instance
-	 * @param speed a {@code double} factor ranging from 
-	 * 0.125 to 8 (1/8th to 8 times the original speed)
+	 * @param instanceID - an {@code int} used to identify the 
+	 *                     {@code AudioCue} instance
+	 * @param pan        - a {@code double} ranging from -1 to 1
 	 * @throws IllegalStateException if instance is not active
+	 * @see #setPan(int, double)
+	 * @see AudioCue.PanType
+	 * @see #setPanType(PanType)
 	 */
-	public void setSpeed(int instanceHook, double speed)
-			throws IllegalStateException
+	public void setPan(int instanceID, double pan)
 	{
-		if (!cursors[instanceHook].isActive)
+		if (!cursors[instanceID].isActive)
 		{
 			throw new IllegalStateException(name + " instance: "
-					+ instanceHook + " is inactive");
+					+ instanceID + " is inactive");
 		}
-
-		cursors[instanceHook].targetSpeed = 
-				Math.min(8, Math.max(0.125, speed));
-		if (cursors[instanceHook].isPlaying)
+		cursors[instanceID].targetPan =
+				(float)Math.min(1, Math.max(-1, pan));
+		if (cursors[instanceID].isPlaying)
 		{
-			cursors[instanceHook].targetSpeedIncr = 
-				(cursors[instanceHook].targetSpeed 
-						- cursors[instanceHook].speed) / SPEED_STEPS;
-			cursors[instanceHook].targetSpeedSteps = SPEED_STEPS;
+			cursors[instanceID].targetPanIncr = 
+					(cursors[instanceID].targetPan 
+						- cursors[instanceID].pan) 
+							/ PAN_STEPS;
+			cursors[instanceID].targetPanSteps = PAN_STEPS;
 		}
 		else
 		{
-			cursors[instanceHook].speed = (float)
-					cursors[instanceHook].targetSpeed;
+			cursors[instanceID].pan = 
+					cursors[instanceID].targetPan;
 		}
 	};
 	
@@ -1022,23 +1186,68 @@ public class AudioCue implements AudioMixerTrack
 	 * Returns a factor indicating the current rate of play of  
 	 * the {@code AudioCue} instance relative to normal play.
 	 * 
-	 * @param instanceHook an {@code int} used to identify an 
+	 * @param instanceID - an {@code int} used to identify an 
 	 * {@code AudioCue} instance
 	 * @return a {@code float} factor indicating the speed at 
-	 * which the {@code AudioCue} instance is being played 
-	 * in the range [0.125, 8]
+	 *         which the {@code AudioCue} instance is being played 
+	 *         in the range [0.125, 8]
 	 * @throws IllegalStateException if instance is not active
 	 */
-	public double getSpeed(int instanceHook) throws 
-			IllegalStateException
+	public double getSpeed(int instanceID)
 	{
-		if (!cursors[instanceHook].isActive)
+		if (!cursors[instanceID].isActive)
 		{
 			throw new IllegalStateException(name + " instance: "
-					+ instanceHook + " is inactive");
+					+ instanceID + " is inactive");
 		}
 
-		return cursors[instanceHook].speed;
+		return cursors[instanceID].speed;
+	};
+
+	/**
+	 * Sets the play speed of the {@code AudioCue} instance. A 
+	 * faster speed results in both higher-pitched frequency 
+	 * content and a shorter duration. Play speeds can be 
+	 * altered in while a cue is either playing or stopped. If
+	 * the instance is playing, a smoothing algorithm used to 
+	 * prevent signal discontinuities. If a second speed change
+	 * arrives before the first change is completed, the most
+	 * recent speed change takes precedence.
+	 * <p>
+	 * A speed of 1 will play the {@code AudioCue} instance at its 
+	 * originally recorded speed. A value of 2 will double the 
+	 * play speed, and a value of 0.5 will halve the play speed.
+	 * Arguments are clamped to values ranging from 8 times slower
+	 * to 8 times faster than unity, a range of [0.125, 8].
+	 * 
+	 * @param instanceID - an {@code int} used to identify an 
+	 *                     {@code AudioCue} instance
+	 * @param speed      -a {@code double} factor ranging from 
+	 *                    0.125 to 8
+	 * @throws IllegalStateException if instance is not active
+	 */
+	public void setSpeed(int instanceID, double speed)
+	{
+		if (!cursors[instanceID].isActive)
+		{
+			throw new IllegalStateException(name + " instance: "
+					+ instanceID + " is inactive");
+		}
+
+		cursors[instanceID].targetSpeed = 
+				Math.min(8, Math.max(0.125, speed));
+		if (cursors[instanceID].isPlaying)
+		{
+			cursors[instanceID].targetSpeedIncr = 
+				(cursors[instanceID].targetSpeed 
+						- cursors[instanceID].speed) / SPEED_STEPS;
+			cursors[instanceID].targetSpeedSteps = SPEED_STEPS;
+		}
+		else
+		{
+			cursors[instanceID].speed = (float)
+					cursors[instanceID].targetSpeed;
+		}
 	};
 
 	/**
@@ -1047,114 +1256,118 @@ public class AudioCue implements AudioMixerTrack
 	 * infinite looping via the value -1. Note: an instance
 	 * set to loop 2 times will play back a total of 3 times.
 	 * 
-	 * @param instanceHook an {@code int} used to identify an 
-	 * {@code AudioCue} instance
-	 * @param loops an {@code int} that specifies the number
-	 * of times an instance will return to the beginning
-	 * and play again
+	 * @param instanceID  - an {@code int} used to identify an 
+	 * 						{@code AudioCue} instance
+	 * @param loops       - an {@code int} that specifies the 
+	 *                      number of times an instance will
+	 * 						return to the beginning and play
+	 *                      the instance anew
 	 * @throws IllegalStateException if instance is not active
 	 */
-	public void setLooping(int instanceHook, int loops)
-		throws IllegalStateException
+	public void setLooping(int instanceID, int loops)
 	{
-		if (!cursors[instanceHook].isActive)
+		if (!cursors[instanceID].isActive)
 		{
 			throw new IllegalStateException(name + " instance: "
-					+ instanceHook + " is inactive");
+					+ instanceID + " is inactive");
 		}
 		
-		cursors[instanceHook].loop = loops;
+		cursors[instanceID].loop = loops;
 	};
 	
 	/**
-	 * Sets a flag which determines what happens when the instance
-	 * finishes playing. If {@code true} the instance will be 
-	 * added to the pool of available instances and will no longer 
-	 * allow updates. If {@code false} then the instance will 
-	 * remain available for updates. By default, an instance that
-	 * is obtained via a {@code play} method recycles, and an 
-	 * instance obtained via {@code getInstance} will not. But in 
-	 * both cases the behavior can be changed by setting this
-	 * flag.
+	 * Sets an internal flag which determines what happens when the
+	 * designated instance finishes playing. If {@code true} the 
+	 * instance will be added to the pool of available instances and 
+	 * will not accept updates. If {@code false} then the instance 
+	 * will remain available for updates.
+	 * <p> 
+	 * By default, an instance that is obtained and started via the 
+	 * {@code play} method automatically recycles, and an instance 
+	 * obtained via {@code getInstance} does not. In both cases the 
+	 * behavior can be changed by setting this flag.
 	 * 
-	 * @param instanceHook an {@code int} used to identify an 
-	 * {@code AudioCue} instance
-	 * @param recycleWhenDone a {@code boolean} that designates
-	 * the behavior ("recycle" or not) that occurs when the 
-	 * instance finishes playing
+	 * @param instanceID      - an {@code int} used to identify an 
+	 *                          {@code AudioCue} instance
+	 * @param recycleWhenDone - a {@code boolean} that designates
+	 *                          whether to recycle the instance or 
+	 *                          not when the instance plays through 
+	 *                          to completion
 	 * @throws IllegalStateException if the instance is not active
 	 */
-	public void setRecycleWhenDone(int instanceHook, 
-			boolean recycleWhenDone) throws IllegalStateException
+	public void setRecycleWhenDone(int instanceID, boolean recycleWhenDone)
 	{
-		if (!cursors[instanceHook].isActive)
+		if (!cursors[instanceID].isActive)
 		{
 			throw new IllegalStateException(name + " instance: "
-					+ instanceHook + " is inactive");
+					+ instanceID + " is inactive");
 		}
 		
-		cursors[instanceHook].recycleWhenDone = recycleWhenDone;
+		cursors[instanceID].recycleWhenDone = recycleWhenDone;
 	}	
 	
 	/**
-	 * Returns {@code true} if instance is active, {@code false}
-	 * if not.
+	 * Returns {@code true} if the designated instance is active, 
+	 * {@code false} if not. An active instance is one which is 
+	 * not in the pool of available instances, but is open to 
+	 * receiving commands. It may or may not be playing at any given 
+	 * moment.
 	 * 
-	 * @param instanceHook an {@code int} used to identify an 
-	 * {@code AudioCue} instance
-	 * @return {@code true} if instance is playing, {@code false}
-	 * if not
+	 * @param instanceID - an {@code int} used to identify an 
+	 *                     {@code AudioCue} instance
+	 * @return {@code true} if the instance is active, {@code false}
+	 *                      if not
+	 * @see #getIsPlaying(int)
 	 */
-	public boolean getIsActive(int instanceHook)
+	public boolean getIsActive(int instanceID)
 	{
-		return cursors[instanceHook].isActive;
+		return cursors[instanceID].isActive;
 	}
 	
 	/**
 	 * Returns {@code true} if instance is playing, {@code false}
 	 * if not
 	 * 
-	 * @param instanceHook an {@code int} used to identify an 
-	 * {@code AudioCue} instance
+	 * @param instanceID - an {@code int} used to identify an 
+	 *                     {@code AudioCue} instance
 	 * @return {@code true} if instance is playing, {@code false}
-	 * if not
+	 *         if not
 	 */
-	public boolean getIsPlaying(int instanceHook)
+	public boolean getIsPlaying(int instanceID)
 	{
-		return cursors[instanceHook].isPlaying;
+		return cursors[instanceID].isPlaying;
 	}
 	
 	
 	/*
-	 * A private, data-only class that is created and
-	 * maintained internally for managing each concurrent instance 
-	 * of an {@code AudioCue}. The 'hook' variable is an identifier 
-	 * that is created upon instantiation to correspond 
-	 * to the position of the {@code AudioCueCursor} instance in 
-	 * the {@code AudioCue.cursors} array.
-	 * <p>
-	 * An instance is either active ({code isActive = true})
-	 * in which case it can be updated, or inactive, in which case
-	 * it is in a pool of <em>available</em> instances. An 
-	 * <em>active</em> instance is either playing or stopped 
-	 * (paused). These flags are checked for appropriate state
-	 * for various method calls. The {@code recycleWhenDone
-	 * boolean} is used to determine whether the instance is placed
-	 * back in the pool of available instances when a play 
-	 * completes, or if it remains available to update. 
-	 * <p>
-	 * The <em>target</em> variables are used to ensure that 
-	 * changes in real time to the corresponding settings change
-	 * in small enough increments that discontinuities are not 
-	 * created in the data.
+	 * A private, data-only class that is created and maintained
+	 * internally for managing a single instance of an AudioCue. 
+	 * The immutable 'id' variable set during instantiation, with
+	 * the value corresponding to the position of the AudioCueCursor
+	 * instance in the AudioCue.cursors array.
+	 * 
+	 * An instance is either active (isActive == true) in which case
+	 * it can be updated, or inactive, in which case it is in a pool
+	 * of <em>available</em> instances. An active instance can either
+	 * be playing (isPlaying == true) or stopped (isPlaying == false). 
+	 * 
+	 * The 'recycleWhenDone' boolean is used to determine whether 
+	 * the instance is returned to the pool of available instances 
+	 * when a play completes, or if it is allowed to remain active 
+	 * and open to further commands. 
+	 * 
+	 * The target variables are used by operations that spread out
+	 * changes over a preset number of steps (see VOLUME_STEPS,
+	 * SPEED_STEPS, PAN_STEPS) to prevent discontinuities that 
+	 * could otherwise cause audible clicks.
 	 */
 	private class AudioCueCursor
 	{
 		volatile boolean isPlaying;
 		volatile boolean isActive;
-		final int hook;
+		final int id;
 		
-		double idx;
+		double cursor;
 		double speed;
 		float volume;
 		float pan;
@@ -1173,9 +1386,9 @@ public class AudioCue implements AudioMixerTrack
 		float targetPanIncr;
 		int targetPanSteps;
 		
-		AudioCueCursor(int hook)
+		AudioCueCursor(int instanceId)
 		{
-			this.hook = hook;			
+			this.id = instanceId;			
 		}
 		
 		/*
@@ -1186,7 +1399,7 @@ public class AudioCue implements AudioMixerTrack
 		{
 			isActive = false;
 			isPlaying = false;
-			idx = 0;
+			cursor = 0;
 			speed = 1;
 			volume = 0;
 			pan = 0;
@@ -1209,6 +1422,11 @@ public class AudioCue implements AudioMixerTrack
 		private SourceDataLine sdl;
 		private final int sdlBufferSize;
 		private byte[] audioBytes;
+//		private boolean playerRunning;
+		
+		public void stopRunning() {
+			playerRunning = false;
+		}
 		
 		AudioCuePlayer(Mixer mixer, int bufferFrames) throws 
 			LineUnavailableException
@@ -1227,13 +1445,15 @@ public class AudioCue implements AudioMixerTrack
 			sdl.start();
 		}
 		
+		
+		
 		// Audio Thread Code
 		public void run()
 		{			
 			while(playerRunning)
 			{
 				readBuffer = fillBuffer(readBuffer);
-				audioBytes = fromBufferToAudioBytes(audioBytes, readBuffer);
+				audioBytes = fromPcmToAudioBytes(audioBytes, readBuffer);
 				sdl.write(audioBytes, 0, sdlBufferSize);
 			}
 			sdl.drain();
@@ -1243,8 +1463,7 @@ public class AudioCue implements AudioMixerTrack
 	}
 
 	/*
-	 * AudioThread code.
-	 * Within while loop.
+	 * AudioThread code, executing within the while loop of the run() method.
 	 */
 	private float[] fillBuffer(float[] readBuffer)
 	{
@@ -1293,13 +1512,13 @@ public class AudioCue implements AudioMixerTrack
 						panFactorR = panR.apply(acc.pan);
 					}
 					
-					// get audioVals (with LERP for fractional idx)
+					// get audioVals, with LERP for fractional cursor position
 					float[] audioVals = new float[2];
-					if (acc.idx == (int)acc.idx) {
-						audioVals[0] = cue[(int)acc.idx * 2];
-						audioVals[1] = cue[((int)acc.idx * 2) + 1];
+					if (acc.cursor == (int)acc.cursor) {
+						audioVals[0] = cue[(int)acc.cursor * 2];
+						audioVals[1] = cue[((int)acc.cursor * 2) + 1];
 					} else {
-						audioVals = readFractionalFrame(audioVals, acc.idx);
+						audioVals = readFractionalFrame(audioVals, acc.cursor);
 					}
 					
 					readBuffer[i] += (audioVals[0] 
@@ -1311,28 +1530,26 @@ public class AudioCue implements AudioMixerTrack
 					// adjust pitch if needed
 					if (acc.targetSpeedSteps-- > 0)
 					{
-//						acc.speed = acc.targetSpeed  
-//								- acc.targetSpeedIncr * acc.targetSpeedSteps;
 						acc.speed += acc.targetSpeedIncr;
 					}
 	
 					// set NEXT read position
-					acc.idx += acc.speed;
+					acc.cursor += acc.speed;
 					
 					// test for "eof" and "looping"
-					if (acc.idx > (cueFrameLength - 1))
+					if (acc.cursor > (cueFrameLength - 1))
 					{
 						// keep looping indefinitely
 						if (acc.loop == -1)
 						{
-							acc.idx = 0;
+							acc.cursor = 0;
 							broadcastLoopEvent(acc);
 						}
 						// loop specific number of times
 						else if (acc.loop > 0)
 						{
 							acc.loop--;
-							acc.idx = 0;
+							acc.cursor = 0;
 							broadcastLoopEvent(acc);
 						}
 						else // no more loops to do
@@ -1357,37 +1574,78 @@ public class AudioCue implements AudioMixerTrack
 		return readBuffer;
 	}
 	
-	// Audio thread code, gets single stereo Frame pairs.
-	// Due to variable pitch, requires LERP between frames.
+	/*
+	 *  Audio thread code, returns a single stereo PCM pair using a
+	 *  LERP (linear interpolation) function. The difference between 
+	 *  `idx` (floating point value) and `intIndex` determines the 
+	 *  weighting amount for the LERP algorithm. As the PCM array of
+	 *  audio data is stereo, we use `stereoIndex` (twice the amount
+	 *  of `intIndex`) to locate the audio values to be weighted. 
+	 */
 	private float[] readFractionalFrame(float[] audioVals, double idx)
 	{
 		final int intIndex = (int) idx;
-		final int flatIndex = intIndex * 2;
+		final int stereoIndex = intIndex * 2;
 		
-		audioVals[0] = (float)(cue[flatIndex + 2] * (idx - intIndex) 
-				+ cue[flatIndex] * ((intIndex + 1) - idx));
+		audioVals[0] = (float)(cue[stereoIndex + 2] * (idx - intIndex) 
+				+ cue[stereoIndex] * ((intIndex + 1) - idx));
 		
-		audioVals[1] = (float)(cue[flatIndex + 3] * (idx - intIndex) 
-				+ cue[flatIndex + 1] * ((intIndex + 1) - idx));
+		audioVals[1] = (float)(cue[stereoIndex + 3] * (idx - intIndex) 
+				+ cue[stereoIndex + 1] * ((intIndex + 1) - idx));
 
 		return audioVals;
 	}
 	
-	// Audio Thread Code, keep this a self-contained function!
-	public static byte[] fromBufferToAudioBytes(byte[] audioBytes, float[] buffer)
+	/**
+	 * Converts an array of signed, normalized float PCM values to a 
+	 * corresponding byte array using 16-bit, little-endian encoding. 
+	 * This is the sole audio format supported by this application, 
+	 * and is expected by the {@code SourceDataLine} configured for
+	 * media play. Because each float value is converted into two  
+	 * bytes, the receiving array, {@code audioBytes}, must be twice
+	 * the length of the array of data to be converted, {@code sourcePcm}.
+	 * Failure to comply will throw an {@code IllegalArgumentException}.
+	 * 
+	 * @param audioBytes - an byte array ready to receive the converted 
+	 * 					audio data.	Should be twice the length of 
+	 * 					{@code buffer}.
+	 * @param sourcePcm - a float array with signed, normalized PCM data to
+	 * 					be converted 
+	 * @return the byte array {@code audioBytes} after is has been populated
+	 * 					with the converted data
+	 * @throws IllegalArgumentException if destination array is not exactly
+	 * 					twice the length of the source array
+	 */
+	public static byte[] fromPcmToAudioBytes(byte[] audioBytes, float[] sourcePcm)
 	{
-		for (int i = 0, n = buffer.length; i < n; i++)
+		if (sourcePcm.length * 2 != audioBytes.length) {
+			throw new IllegalArgumentException(
+					"Destination array must be exactly twice the length of the source array");
+		}
+		
+		for (int i = 0, n = sourcePcm.length; i < n; i++)
 		{
-			buffer[i] *= 32767;
+			sourcePcm[i] *= 32767;
 			
-			audioBytes[i*2] = (byte) buffer[i];
-			audioBytes[i*2 + 1] = (byte)((int)buffer[i] >> 8 );
+			audioBytes[i*2] = (byte) sourcePcm[i];
+			audioBytes[i*2 + 1] = (byte)((int)sourcePcm[i] >> 8 );
 		}
 	
 		return audioBytes;
 	}
 
-	// Function - keep it self contained.
+	/**
+	 * Obtains a {@code SourceDataLine} that is available for use from the 
+	 * specified {@code javax.sound.sampled.Mixer} and that matches the
+	 * description in the specified {@code Line.Info}.   
+	 * 
+	 * @param mixer - an {@code javax.sound.sampled.Mixer}
+	 * @param info - describes the desired line 
+	 * @return a a line that is available for use from the specified
+	 * 				{@code javax.sound.sampled.Mixer} and that matches the 
+	 * 				description	in the specified {@code Line.Info} object
+	 * @throws LineUnavailableException if a matching line is not available
+	 */
 	public static SourceDataLine getSourceDataLine(Mixer mixer, 
 			Info info) throws LineUnavailableException
 	{
@@ -1406,15 +1664,15 @@ public class AudioCue implements AudioMixerTrack
 	}
 	
 	@Override  // AudioMixerTrack interface
-	public boolean isRunning() 
+	public boolean isTrackRunning() 
 	{
-		return playerRunning;
+		return trackRunning;
 	}
 	
 	@Override  // AudioMixerTrack interface
-	public void setRunning(boolean bool) 
+	public void setTrackRunning(boolean trackRunning) 
 	{
-		this.playerRunning = bool;
+		this.trackRunning = trackRunning;
 	}
 	
 	@Override  // AudioMixerTrack interface
@@ -1424,9 +1682,8 @@ public class AudioCue implements AudioMixerTrack
 	}
 	
 	
+	// Following are methods that broadcast events to registered listeners.
 	
-	// The following are the methods that broadcast events to 
-	// the registered listeners.
 	private void broadcastOpenEvent(int threadPriority, 
 			int bufferSize,	String name)
 	{
@@ -1453,7 +1710,7 @@ public class AudioCue implements AudioMixerTrack
 			acl.instanceEventOccurred(
 					new AudioCueInstanceEvent(
 							Type.OBTAIN_INSTANCE,
-							this, acc.hook, 0
+							this, acc.id, 0
 					));
 		}
 	}
@@ -1465,7 +1722,7 @@ public class AudioCue implements AudioMixerTrack
 			acl.instanceEventOccurred(
 					new AudioCueInstanceEvent(
 							Type.RELEASE_INSTANCE,
-							this, acc.hook, acc.idx
+							this, acc.id, acc.cursor
 					));
 		}
 	}
@@ -1477,7 +1734,7 @@ public class AudioCue implements AudioMixerTrack
 			acl.instanceEventOccurred(
 					new AudioCueInstanceEvent(
 							Type.START_INSTANCE,
-							this, acc.hook, acc.idx
+							this, acc.id, acc.cursor
 					));
 		}
 	}
@@ -1488,7 +1745,7 @@ public class AudioCue implements AudioMixerTrack
 		{
 			acl.instanceEventOccurred(
 					new AudioCueInstanceEvent(
-							Type.LOOP, this, acc.hook, 0
+							Type.LOOP, this, acc.id, 0
 					));
 		}
 	}
@@ -1500,7 +1757,7 @@ public class AudioCue implements AudioMixerTrack
 			acl.instanceEventOccurred(
 					new AudioCueInstanceEvent(
 							Type.STOP_INSTANCE,
-							this, acc.hook, acc.idx
+							this, acc.id, acc.cursor
 					));
 		}
 	}
