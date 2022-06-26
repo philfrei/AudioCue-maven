@@ -144,6 +144,8 @@ public class AudioMixer
 	 * automatically when the {@code start} method is called.
 	 * 
 	 * @param track - an {@code AudioMixerTrack} to be added to the mix
+	 * @see #removeTrack(AudioMixerTrack)
+	 * @see #updateTracks()
 	 */
 	public void addTrack(AudioMixerTrack track)
 	{
@@ -160,6 +162,8 @@ public class AudioMixer
 	 * automatically when the {@code start} method is called.
 	 *  
 	 * @param track - an {@code AudioMixerTrack} to be removed from the mix
+	 * @see #addTrack(AudioMixerTrack)
+	 * @see #updateTracks()
 	 */
 	public void removeTrack(AudioMixerTrack track)
 	{
@@ -171,6 +175,8 @@ public class AudioMixer
 	 * {@code AudiomixerTrack} collection at the next opportunity. 
 	 * Tracks to be added or removed are first staged using the 
 	 * methods {@code addTrack} and {@code removeTrack}.
+	 * @see #addTrack(AudioMixerTrack)
+	 * @see #removeTrack(AudioMixerTrack)
 	 */
 	public void updateTracks()
 	{

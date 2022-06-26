@@ -58,16 +58,21 @@ import javax.sound.sampled.UnsupportedAudioFileException;
  * {@code AudioCueListener.audioCueClosed}.
  * <p>
  * The line used for output is a 
- * {@code javax.sound.sampled.SourceDataLine}. Default behavior is to 
- * obtain the line from the default {@code javax.sound.sampled.Mixer},
- * with a buffer size of 1024 frames (4192 bytes). The line will be
- * be run from within a dedicated thread, with a thread priority of 
- * {@code HIGHEST}. Given that the processing of audio data usually
- * progresses much faster than time taken to play it, this thread 
- * can be expected to spend most of its time in a blocked state, which
- * allows maximizing the thread priority without impacting overall 
- * performance. An alternative {@code Mixer}, buffer length or thread
- * priority can be specified as parameters to the {@code open} method. 
+ * {@code javax.sound.sampled.SourceDataLine}. The format specified
+ * for the line is 44100 fps, 16-bit, stereo, little-endian, a format
+ * also known as "CD Quality". This format is one of the most widely
+ * supported and is the only format available for output via 
+ * {@code AudioCue}. If a {@code javax.sound.sampled.Mixer} is not
+ * specified, the default behavior is to obtain the line from the
+ * system's default {@code Mixer}, with a buffer size of 1024 frames
+ * (4192 bytes). The line will be run from within a dedicated thread,
+ * with a thread priority of {@code HIGHEST}. Given that the 
+ * processing of audio data usually progresses much faster than time
+ * it takes to play the media, this thread can be expected to spend
+ * most of its time in a blocked state, which allows maximizing the
+ * thread priority without impacting overall performance. An 
+ * alternative {@code Mixer}, buffer length or thread priority can be
+ * specified as parameters to the {@code open} method. 
  * <p>
  * An <em>instance</em> can either be <em>active</em> or not active,
  * and, if active, can either be <em>running</em> or not running. 
@@ -123,7 +128,7 @@ import javax.sound.sampled.UnsupportedAudioFileException;
  *    
  *    // (3) Using obtainInstance()
  *    int footstep = footstepCue.obtainInstance();
- *    for (int i = 0; i < 10; i++) {
+ *    for (int i = 0; i &#60; 10; i++) {
  *        // play the successive footsteps more quietly
  *        footstepCue.setVolume(footstep, 1 - (i * 0.1));
  *        // successive footsteps will travel from left to right
@@ -561,7 +566,7 @@ public class AudioCue implements AudioMixerTrack
 	 * @see #audioFormat
 	 * @see AudioCueListener
 	 * @see javax.sound.sampled.Mixer
-	 * @see AudioCueListener#audioCueOpened(long, AudioCue)
+	 * @see AudioCueListener#audioCueOpened(long, int, int, AudioCue)
 	 */
 	public void open(Mixer mixer, int bufferFrames, int threadPriority) 
 		throws LineUnavailableException
@@ -603,7 +608,7 @@ public class AudioCue implements AudioMixerTrack
 	 * 					   for this {@code AudioCue}
 	 * @throws IllegalStateException if the {@code AudioCue} is already open
 	 * @see AudioMixer
-	 * @see AudioCueListener#audioCueOpened(long, AudioCue)
+	 * @see AudioCueListener#audioCueOpened(long, int, int, AudioCue)
 	 */
 	public void open(AudioMixer audioMixer)
 	{
@@ -911,7 +916,7 @@ public class AudioCue implements AudioMixerTrack
 	 *         sample frame position
 	 * @throws IllegalStateException if instance is not active
 	 * @see #setFramePosition(int, double)
-	 * @see #setMicrosecondPosition(int, double)
+	 * @see #setMicrosecondPosition(int, int)
 	 * @see #setFractionalPosition(int, double)
 	 */
 	public double getFramePosition(int instanceID)
