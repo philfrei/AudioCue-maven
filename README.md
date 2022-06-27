@@ -4,8 +4,8 @@
 enhanced with concurrent playback and with dynamic handling of volume, pan and frequency. Included is a mixer
 that can be optionally used to merge the output of multiple *AudioCues* into a single line out.
 
-The project has been updated and is now published on *Maven Central*. Unit tests have been added, 
-and more rigorous API documentation has been written. Over the course of making these changes, some errors 
+The project has been updated and is now [published on *Maven Central*](https://search.maven.org/artifact/com.adonax/audiocue/2.0.0/jar).
+Unit tests have been added, and more rigorous API documentation has been written. Over the course of making these changes, some errors 
 and shortcomings were uncovered and have been corrected. The changes are extensive enough that this project 
 will have a starting release version of 2.0.0. The [previous version](https://github.com/philfrei/AudioCue)
 will no longer be maintained. 
