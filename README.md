@@ -4,21 +4,14 @@
 enhanced with concurrent playback and with dynamic handling of volume, pan and frequency. Included is a mixer
 that can be optionally used to merge the output of multiple *AudioCues* into a single line out.
 
-In this project, the build tool is Maven. The [previous version](https://github.com/philfrei/AudioCue) used Gradle. 
-A goal: publication via *Sonatype/Maven Central*. In support of that goal, unit tests have been added, 
+The project has been updated and is now published on *Maven Central*. Unit tests have been added, 
 and more rigorous API documentation has been written. Over the course of making these changes, some errors 
 and shortcomings were uncovered and have been corrected. The changes are extensive enough that this project 
-will be designated version 2.0.0.
+will have a starting release version of 2.0.0. The [previous version](https://github.com/philfrei/AudioCue)
+will no longer be maintained. 
 
-Until *AudioCue* is available at *Maven Central*, the best way to make use of the **AudioCue** class is 
-to fork this project, then clone it to a development environment. From there, executing Maven's 
-*install* command will put the library into the local Maven repository. Or, you can directly make 
-use of the jar file that is created in the **/target** subdirectory via the *package* command by adding 
-this jar file to your project's classpath. Also, since there are only a few files, you can consider 
-simply copying these files directly into your project. Just be sure, if you do, to edit the *package* 
-lines of the files to appropriately reflect the new file locations.
-
-To use *AudioCue* as a Maven dependency, add the following to your project's POM file.
+The best way to make use of the **AudioCue** class is use the Maven build tool, and list *AudioCue* as a
+dependency. To use *AudioCue* as a Maven dependency, add the following to your project's POM file.
 
     <dependencies>  
         <dependency>
@@ -27,6 +20,15 @@ To use *AudioCue* as a Maven dependency, add the following to your project's POM
             <version>2.0.0</version>
         </dependency>
     </dependencies>
+
+When used in this way, source code and Javadocs documentation will automatically be linked.
+
+Another option is to fork this project and clone it to a development environment. From there, executing 
+Maven's *install* command will put the library into the local Maven repository. Or, you can directly make 
+use of the jar file that is created in the **/target** subdirectory via the *package* command by adding 
+this jar file to your project's classpath. Also, since there are only a few files, you can consider 
+simply copying these files directly into your project. Just be sure, if you do, to edit the *package* 
+lines of the files to appropriately reflect their new file locations.
 
 ## Usage
 ### Basic playback (for "fire-and-forget" use)
