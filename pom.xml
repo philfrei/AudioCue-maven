@@ -8,8 +8,8 @@
 	<description>AudioCue is an audio-playback class modeled on javax.sound.sampled.Clip, that has
 		been enhanced with concurrent playback and dynamic handling of volume, pan and frequency.
 	</description>
-<!--	<url>https://github.com/philfrei/AudioCue-maven</url>
--->	<licenses>
+	<url>https://github.com/philfrei/AudioCue-maven</url>
+	<licenses>
 		<license>
 			<name>MIT License</name>
 			<url>http://www.opensource.org/licenses/mit-license.php</url>
@@ -18,7 +18,7 @@
 
 	<developers>
 		<developer>
-			<name>Phil Freihofner</name>
+			<name>Philip Freihofner</name>
 			<email>phil@adonax.com</email>
 			<organization>Adonax</organization>
 			<organizationUrl>https://adonax.com</organizationUrl>
@@ -36,12 +36,7 @@
 			<id>ossrh</id>
 			<url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
 		</snapshotRepository>
-		<repository>
-			<id>ossrh</id>
-			<url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-		</repository>
 	</distributionManagement>
-
 
 	<dependencies>
 		<dependency>
@@ -53,17 +48,6 @@
 
 	<build>
 		<plugins>
-			<!-- This is the plugin that I successfully used to deploy locally.
-The instructions could be clearer about whether this is needed if we are using the
-nexus-staging-maven-plugin.		
-	<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.8.0</version>
-				<configuration>
-					<release>11</release>
-				</configuration>
-			</plugin> -->
 			<plugin>
 				<groupId>org.sonatype.plugins</groupId>
 				<artifactId>nexus-staging-maven-plugin</artifactId>
@@ -72,7 +56,7 @@ nexus-staging-maven-plugin.
 				<configuration>
 					<serverId>ossrh</serverId>
 					<nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
-					<autoReleaseAfterClose>true</autoReleaseAfterClose>
+					<autoReleaseAfterClose>false</autoReleaseAfterClose>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -88,10 +72,6 @@ nexus-staging-maven-plugin.
 					</execution>
 				</executions>
 			</plugin>
-			<!-- Temporarily dropping this as we progressively test. Earlier, received
-				errors pertaining to module and Java 7 being invoked, which makes 
-				little sense. -->
-
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
@@ -109,7 +89,7 @@ nexus-staging-maven-plugin.
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-gpg-plugin</artifactId>
-				<version>1.5</version>
+				<version>3.0.1</version>
 				<executions>
 					<execution>
 						<id>sign-artifacts</id>
