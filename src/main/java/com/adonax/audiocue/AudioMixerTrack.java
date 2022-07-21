@@ -23,8 +23,11 @@ import java.io.IOException;
  * can in effect be muted by setting the state to not running, and the media 
  * writes can be set to resume by setting the state to running.
  * 
+ * @since 2.0.0
+ * @version 2.0.0
  * @author Philip Freihofner
- * @version AudioCue 2.0.0
+ * 
+ * @see AudioMixer
  */
 abstract public interface AudioMixerTrack {
 

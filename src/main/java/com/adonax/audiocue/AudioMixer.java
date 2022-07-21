@@ -34,8 +34,11 @@ import javax.sound.sampled.SourceDataLine;
  * configuration values override those associated with the constituent
  * tracks. 
  * 
+ * @since 2.0.0
+ * @version 2.0.0
  * @author Philip Freihofner
- * @version AudioCue 2.0.0
+ * 
+ * @see AudioMixerTrack
  */
 public class AudioMixer 
 {

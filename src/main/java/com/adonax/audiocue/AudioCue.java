@@ -148,8 +148,9 @@ import javax.sound.sampled.UnsupportedAudioFileException;
  * More extensive examples can be found in the companion github project
  * <em>audiocue-demo</em>.   
  * 
+ * @since 2.0.0
+ * @version 2.0.0
  * @author Philip Freihofner
- * @version AudioCue 2.0.0
  */
 public class AudioCue implements AudioMixerTrack
 {

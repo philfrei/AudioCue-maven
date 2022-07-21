@@ -5,14 +5,20 @@ package com.adonax.audiocue;
  * pertaining to an {@code AudioCue} and to its individual play
  * back instances.
  * <p>
- * The execution of the implementing method {@code instanceEventOccurred}
- * may be on the same thread that processes the audio data (for example, 
+ * The execution of the implemention method {@code instanceEventOccurred}
+ * may occur on the same thread that processes the audio data (for example, 
  * the {@code AudioCueInstanceEvent} type {@code LOOP}), and thus should
  * be coded for brevity in order to minimize non-audio processing that 
- * could potentially contribute to dropouts during media play. 
+ * could potentially contribute to latency during media play. 
  * 
- * @author Philip Freihofner
+ * @since 2.0.0
  * @version AudioCue 2.0.0
+ * @author Philip Freihofner
+ * 
+ * @see #audioCueOpened(long, int, int, AudioCue)
+ * @see #audioCueClosed(long, AudioCue)
+ * @see #instanceEventOccurred(AudioCueInstanceEvent)
+ * @see AudioCueInstanceEvent
  */
 public interface AudioCueListener 
 {
@@ -44,7 +50,9 @@ public interface AudioCueListener
 	 * Method called when an {@code AudioCue} instance event 
 	 * occurs.
 	 * 
-	 * @param event -an {@code AudioCueInstanceEvent} 
+	 * @param event -an {@code AudioCueInstanceEvent}
+	 * 
+	 * @see AudioCueInstanceEvent
 	 */
 	void instanceEventOccurred(AudioCueInstanceEvent event);
 }

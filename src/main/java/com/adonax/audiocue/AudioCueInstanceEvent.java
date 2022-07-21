@@ -1,9 +1,9 @@
 package com.adonax.audiocue;
 
 /**
- * Represents an event in the life cycle of an {@code AudioCue} 
- * instance and is passed as an argument to objects that implement the 
- * {@code AudioCueListener} interface and are registered to listen.
+ * Represents an event in the life cycle of an {@code AudioCue} play
+ * back instance and is passed as an argument to objects that implement
+ * the {@code AudioCueListener} interface and are registered to listen.
  * <p>
  * {@code AudioCue} supports concurrent media writes by managing
  * a pool of instances. The lifecycle of an instance is as
@@ -13,7 +13,7 @@ package com.adonax.audiocue;
  * of available instances if the limit of concurrent instances 
  * is not exceeded</li> 
  * <li>START_INSTANCE: an instance starts to play</li> 
- * <li>LOOP: a instance that finishes playing restarts from the
+ * <li>LOOP: a instance that finishes playing restarts from the 	
  * beginning</li>
  * <li>STOP_INSTANCE: a playing instance is stopped (but can
  * be restarted)</li>
@@ -31,10 +31,14 @@ package com.adonax.audiocue;
  * <li><strong>frame</strong> - a {@code double} containing the frame 
  * (may be a fractional value) that was current at the time of the event</li>
  * <li><strong>instanceID</strong> - an {@code int} used to identify the 
- * {@code AudioCue} instance.</li></ul>
+ * {@code AudioCue} play back instance.</li></ul>
  * 
+ * @since 2.0.0
+ * @version 2.0.0
  * @author Philip Freihofner
- * @version AudioCue 2.0.0
+ * 
+ * @see AudioCueListener
+ * 
  */
 public class AudioCueInstanceEvent {
 
