@@ -44,7 +44,7 @@ class AudioCueTest {
 	void testCursorPositioning() {
 		// data will be one second in duration, 44100 total frames
 		float[] pcmData = new float[88200]; 
-		AudioCue testCue = AudioCue.makeStereoCue(pcmData, "testCue", 2);
+		AudioCue testCue = AudioCue.makeStereoCue(pcmData, "TestCue", 2);
 		
 		int instance0 = testCue.obtainInstance();
 		
@@ -65,22 +65,23 @@ class AudioCueTest {
 		Assertions.assertEquals(44100, testCue.getFramePosition(instance0));
 		
 		// Testing exceptions
-		// When instance0 is released, isActive will be false
-		// which should throw exception.
+		// When instance0 is released, isActive will be set to false.
+		// Attempts to setFractionalPosition should now throw exception.
 		testCue.releaseInstance(instance0);
-		IllegalStateException thrown = Assertions.assertThrows(
+		Exception thrown = Assertions.assertThrows(
 				IllegalStateException.class, () -> {
 					testCue.setFractionalPosition(instance0, 0);
 				});		
-		Assertions.assertEquals("Illegal state, testCue, instance:" 
-				+ instance0, thrown.getMessage());
+		Assertions.assertEquals(
+				"TestCue instance: " + instance0 + " is inactive", 
+				thrown.getMessage());
 		
-		thrown = Assertions.assertThrows(
-				IllegalStateException.class, () -> {
+		thrown = Assertions.assertThrows(IllegalStateException.class, () -> {
 					testCue.setMicrosecondPosition(instance0, 0);
 				});		
-		Assertions.assertEquals("Illegal state, testCue, instance:" 
-				+ instance0, thrown.getMessage());
+		Assertions.assertEquals(
+				"TestCue instance: " + instance0 + " is inactive", 
+				thrown.getMessage());
 
 		// When an instance is started, isPlaying == true
 		// which should throw exception.
@@ -91,14 +92,17 @@ class AudioCueTest {
 				IllegalStateException.class, () -> {
 					testCue.setFractionalPosition(instance1, 0);
 				});		
-		Assertions.assertEquals("Illegal state, testCue, instance:" 
-				+ instance1, thrown.getMessage());
+		Assertions.assertEquals(
+				"TestCue instance: " + instance1 + " is inactive", 
+				thrown.getMessage());
+		
 		thrown = Assertions.assertThrows(
 				IllegalStateException.class, () -> {
 					testCue.setMicrosecondPosition(instance1, 0);
 				});		
-		Assertions.assertEquals("Illegal state, testCue, instance:" 
-				+ instance1, thrown.getMessage());
+		Assertions.assertEquals( 
+				"TestCue instance: " + instance1 + " is inactive", 
+				thrown.getMessage());
 	}
 	
 	@Test
@@ -220,6 +224,9 @@ class AudioCueTest {
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
 		// With CENTER_LINEAR, pan 0 leaves both L & R values as is.
 		testCue.setPanType(PanType.CENTER_LINEAR);
+		
+		// This sets variable needed for reading track (cursor.isPlaying) but 
+		// does not output to SDL because we haven't opened the AudioCue.
 		testCue.play();
 		
 		// This makes use of the default readBuffer instantiated in the

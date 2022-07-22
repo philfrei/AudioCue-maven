@@ -874,7 +874,7 @@ public class AudioCue implements AudioMixerTrack
 			throw new IllegalStateException(name + " instance: "
 					+ instanceID + " is inactive");
 		}
-		
+		cursors[instanceID].instantaneousUpdate();
 		cursors[instanceID].isPlaying = true;
 		broadcastStartEvent(cursors[instanceID]);
 	};
@@ -1064,8 +1064,8 @@ public class AudioCue implements AudioMixerTrack
 			throw new IllegalStateException(name + " instance: "
 					+ instanceID + " is inactive");
 		}
-
-		return cursors[instanceID].volume;
+		return cursors[instanceID].isPlaying ? 
+				cursors[instanceID].volume : cursors[instanceID].newTargetVolume; 				
 	};
 
 	/**
@@ -1099,8 +1099,16 @@ public class AudioCue implements AudioMixerTrack
 					+ instanceID + " is inactive");
 		}
 
-		cursors[instanceID].targetVolume = 
+		cursors[instanceID].newTargetVolume = 
 				(float)Math.min(1, Math.max(0, volume));
+		
+		// GAP, potential race-condition, starts playing before 
+		// the new volume has been set.
+		if (!cursors[instanceID].isPlaying) {
+			cursors[instanceID].volume = 
+					cursors[instanceID].newTargetVolume;
+		}
+/*
 		if (cursors[instanceID].isPlaying)
 		{
 			cursors[instanceID].targetVolumeIncr = 
@@ -1114,6 +1122,7 @@ public class AudioCue implements AudioMixerTrack
 			cursors[instanceID].volume = 
 					cursors[instanceID].targetVolume;
 		}
+*/
 	};
 
 	/**
@@ -1140,7 +1149,8 @@ public class AudioCue implements AudioMixerTrack
 					+ instanceID + " is inactive");
 		}
 		
-		return cursors[instanceID].pan;
+		return cursors[instanceID].isPlaying ? 
+				cursors[instanceID].pan : cursors[instanceID].newTargetPan; 
 	};
 
 	/**
@@ -1171,9 +1181,11 @@ public class AudioCue implements AudioMixerTrack
 			throw new IllegalStateException(name + " instance: "
 					+ instanceID + " is inactive");
 		}
-		cursors[instanceID].targetPan =
+		cursors[instanceID].newTargetPan =
 				(float)Math.min(1, Math.max(-1, pan));
-		if (cursors[instanceID].isPlaying)
+/*
+  		if (cursors[instanceID].isPlaying)
+ 
 		{
 			cursors[instanceID].targetPanIncr = 
 					(cursors[instanceID].targetPan 
@@ -1186,6 +1198,7 @@ public class AudioCue implements AudioMixerTrack
 			cursors[instanceID].pan = 
 					cursors[instanceID].targetPan;
 		}
+*/		
 	};
 	
 	/**
@@ -1207,7 +1220,8 @@ public class AudioCue implements AudioMixerTrack
 					+ instanceID + " is inactive");
 		}
 
-		return cursors[instanceID].speed;
+		return cursors[instanceID].isPlaying ? 
+				cursors[instanceID].speed : cursors[instanceID].newTargetSpeed; 
 	};
 
 	/**
@@ -1240,8 +1254,9 @@ public class AudioCue implements AudioMixerTrack
 					+ instanceID + " is inactive");
 		}
 
-		cursors[instanceID].targetSpeed = 
+		cursors[instanceID].newTargetSpeed = 
 				Math.min(8, Math.max(0.125, speed));
+/*
 		if (cursors[instanceID].isPlaying)
 		{
 			cursors[instanceID].targetSpeedIncr = 
@@ -1254,6 +1269,7 @@ public class AudioCue implements AudioMixerTrack
 			cursors[instanceID].speed = (float)
 					cursors[instanceID].targetSpeed;
 		}
+*/	
 	};
 
 	/**
@@ -1380,14 +1396,17 @@ public class AudioCue implements AudioMixerTrack
 		int loop;
 		boolean recycleWhenDone;
 
+		double newTargetSpeed;
 		double targetSpeed;
 		double targetSpeedIncr;
 		int targetSpeedSteps;
 		
+		float newTargetVolume;
 		float targetVolume;
 		float targetVolumeIncr;
 		int targetVolumeSteps;
 		
+		float newTargetPan;
 		float targetPan;
 		float targetPanIncr;
 		int targetPanSteps;
@@ -1401,20 +1420,52 @@ public class AudioCue implements AudioMixerTrack
 		 * Used to clear settings from previous plays
 		 * and put in default settings.
 		 */
-		void resetInstance()
-		{
+		private void resetInstance() {
 			isActive = false;
 			isPlaying = false;
 			cursor = 0;
-			speed = 1;
+			
 			volume = 0;
+			newTargetVolume = 0;
+			targetVolume = 0;
+			targetVolumeSteps = 0;
+			
 			pan = 0;
+			newTargetPan = 0;
+			targetPan = 0;
+			targetPanSteps = 0;
+			
+			speed = 1;
+			newTargetSpeed = 1;
+			targetSpeed = 1;
+			targetSpeedSteps = 0;
+			
 			loop = 0;
 			recycleWhenDone = false;
+		}
+		
+		private void instantaneousUpdate() {
+			if (!isActive) {
+				throw new IllegalStateException(name + " instance: "
+						+ id + " is inactive");
+			}
+			if (isPlaying) {
+				throw new IllegalStateException(name + " instance: "
+						+ id + " is playing");
+			}
 			
-			targetSpeedSteps = 0;
+			// OK to execute instantaneous changes
+			volume = newTargetVolume;
+			targetVolume = newTargetVolume;
 			targetVolumeSteps = 0;
+			
+			pan = newTargetPan;
+			targetPan = newTargetPan;
 			targetPanSteps = 0;
+			
+			speed = newTargetSpeed;
+			targetSpeed = newTargetSpeed;
+			targetSpeedSteps = 0;
 		}
 	}
 
@@ -1455,7 +1506,7 @@ public class AudioCue implements AudioMixerTrack
 		
 		// Audio Thread Code
 		public void run()
-		{			
+		{
 			while(playerRunning)
 			{
 				readBuffer = fillBuffer(readBuffer);
@@ -1496,6 +1547,13 @@ public class AudioCue implements AudioMixerTrack
 				
 				for (int i = 0; i < bufferLength; i += 2)
 				{
+					// has volume setting changed? if so recalc
+					if (acc.newTargetVolume != acc.targetVolume) {
+						acc.targetVolume = acc.newTargetVolume;
+						acc.targetVolumeIncr = 
+								(acc.targetVolume - acc.volume)	/ VOLUME_STEPS;
+						acc.targetVolumeSteps = VOLUME_STEPS;
+					}
 					// adjust volume if needed
 					if (acc.targetVolumeSteps-- > 0)
 					{
@@ -1505,6 +1563,12 @@ public class AudioCue implements AudioMixerTrack
 						}
 					}
 					
+					// has pan setting changed? if so, recalc
+					if (acc.newTargetPan != acc.targetPan) {
+						acc.targetPan = acc.newTargetPan;
+						acc.targetPanIncr = (acc.targetPan - acc.pan) / PAN_STEPS;
+						acc.targetPanSteps = PAN_STEPS;
+					}
 					// adjust pan if needed
 					if (acc.targetPanSteps-- > 0)
 					{
@@ -1533,7 +1597,14 @@ public class AudioCue implements AudioMixerTrack
 							* acc.volume * panFactorR);
 					
 					// SET UP FOR NEXT ITERATION
-					// adjust pitch if needed
+					// has speed setting changed? if so, recalc
+					if (acc.newTargetSpeed != acc.targetSpeed) {
+						acc.targetSpeed = acc.newTargetSpeed;
+						acc.targetSpeedIncr = 
+								(acc.targetSpeed - acc.speed) / SPEED_STEPS;
+						acc.targetSpeedSteps = SPEED_STEPS;
+					}
+					// adjust speed if needed
 					if (acc.targetSpeedSteps-- > 0)
 					{
 						acc.speed += acc.targetSpeedIncr;
