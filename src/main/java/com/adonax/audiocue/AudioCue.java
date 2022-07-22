@@ -1101,28 +1101,6 @@ public class AudioCue implements AudioMixerTrack
 
 		cursors[instanceID].newTargetVolume = 
 				(float)Math.min(1, Math.max(0, volume));
-		
-		// GAP, potential race-condition, starts playing before 
-		// the new volume has been set.
-		if (!cursors[instanceID].isPlaying) {
-			cursors[instanceID].volume = 
-					cursors[instanceID].newTargetVolume;
-		}
-/*
-		if (cursors[instanceID].isPlaying)
-		{
-			cursors[instanceID].targetVolumeIncr = 
-					(cursors[instanceID].targetVolume 
-						- cursors[instanceID].volume) 
-							/ VOLUME_STEPS;
-			cursors[instanceID].targetVolumeSteps = VOLUME_STEPS;
-		}
-		else
-		{
-			cursors[instanceID].volume = 
-					cursors[instanceID].targetVolume;
-		}
-*/
 	};
 
 	/**
@@ -1183,22 +1161,6 @@ public class AudioCue implements AudioMixerTrack
 		}
 		cursors[instanceID].newTargetPan =
 				(float)Math.min(1, Math.max(-1, pan));
-/*
-  		if (cursors[instanceID].isPlaying)
- 
-		{
-			cursors[instanceID].targetPanIncr = 
-					(cursors[instanceID].targetPan 
-						- cursors[instanceID].pan) 
-							/ PAN_STEPS;
-			cursors[instanceID].targetPanSteps = PAN_STEPS;
-		}
-		else
-		{
-			cursors[instanceID].pan = 
-					cursors[instanceID].targetPan;
-		}
-*/		
 	};
 	
 	/**
@@ -1256,20 +1218,6 @@ public class AudioCue implements AudioMixerTrack
 
 		cursors[instanceID].newTargetSpeed = 
 				Math.min(8, Math.max(0.125, speed));
-/*
-		if (cursors[instanceID].isPlaying)
-		{
-			cursors[instanceID].targetSpeedIncr = 
-				(cursors[instanceID].targetSpeed 
-						- cursors[instanceID].speed) / SPEED_STEPS;
-			cursors[instanceID].targetSpeedSteps = SPEED_STEPS;
-		}
-		else
-		{
-			cursors[instanceID].speed = (float)
-					cursors[instanceID].targetSpeed;
-		}
-*/	
 	};
 
 	/**
