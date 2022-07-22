@@ -106,6 +106,23 @@ class AudioCueTest {
 	}
 	
 	@Test
+	void testGetPcmCopy() {
+		int cueLen = 128;
+		float[] testCueData = new float[cueLen];
+		// fill with random signed, normalized floats
+		for (int i = 0; i < cueLen; i++) {
+			testCueData[i] = (float)Math.random() * 2 - 1;
+		}
+		AudioCue testCue = AudioCue.makeStereoCue(testCueData, "testCue", 1);
+		float[] pcmCopy = testCue.getPcmCopy();
+		Assertions.assertEquals(cueLen, pcmCopy.length);
+		
+		for (int i = 0; i < cueLen; i++) {
+			Assertions.assertEquals(pcmCopy[i], testCueData[i]);
+		}
+	}
+	
+	@Test
 	void testVolumeBasics() {
 
 		float[] pcmData = new float[100]; 

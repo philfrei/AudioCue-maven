@@ -2,6 +2,7 @@ package com.adonax.audiocue;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.function.Function;
@@ -469,6 +470,16 @@ public class AudioCue implements AudioMixerTrack
 		}
 		
 		return temp;
+	}
+	
+	/**
+	 * Returns a copy of the signed, normalized float PCM array for this 
+	 * {@code AudioCue}.
+	 * 
+	 * @return 
+	 */
+	public float[] getPcmCopy() {
+		return Arrays.copyOf(cue, cue.length);
 	}
 	
 	/**
