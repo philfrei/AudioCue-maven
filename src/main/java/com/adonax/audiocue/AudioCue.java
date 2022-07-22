@@ -333,7 +333,42 @@ public class AudioCue implements AudioMixerTrack
 		panL = panType.left;
 		panR = panType.right;
 	}
-			
+
+	/**
+	 * Private constructor, used internally.
+	 * 
+	 * @param cue       - a {@code float} array of stereo, signed, normalized PCM
+	 * @param name      - a {@code String} to be associated with the 
+	 * 				      {@code AudioCue} 
+	 * @param polyphony - an {@code int} specifying the maximum number of 
+	 *                    concurrent instances
+	 */
+	private AudioCue(float[] cue, String name, int polyphony)
+	{
+		this.cue = cue;
+		this.cueFrameLength = cue.length / 2;
+		this.polyphony = polyphony;
+		this.name = name;
+		
+		availables = new LinkedBlockingDeque<AudioCueCursor>(polyphony);
+		cursors = new AudioCueCursor[polyphony];
+		
+		for (int i = 0; i < polyphony; i++)
+		{	
+			cursors[i] = new AudioCueCursor(i);
+			cursors[i].resetInstance();
+			availables.add(cursors[i]);
+		}
+		
+		// default readBuffer
+		readBuffer = new float[DEFAULT_BUFFER_FRAMES * 2];
+		
+		// default pan calculation function
+		setPanType(PanType.CENTER_LINEAR);
+		
+		listeners = new CopyOnWriteArrayList<AudioCueListener>();
+	}
+	
 	/**
 	 * Creates and returns a new {@code AudioCue}. This method 
 	 * allows the direct insertion of a {@code float} 
@@ -387,42 +422,7 @@ public class AudioCue implements AudioMixerTrack
 		
 		return new AudioCue(cue, name, polyphony);
 	}
-	
-	/**
-	 * Private constructor, used internally.
-	 * 
-	 * @param cue       - a {@code float} array of stereo, signed, normalized PCM
-	 * @param name      - a {@code String} to be associated with the 
-	 * 				      {@code AudioCue} 
-	 * @param polyphony - an {@code int} specifying the maximum number of 
-	 *                    concurrent instances
-	 */
-	private AudioCue(float[] cue, String name, int polyphony)
-	{
-		this.cue = cue;
-		this.cueFrameLength = cue.length / 2;
-		this.polyphony = polyphony;
-		this.name = name;
-		
-		availables = new LinkedBlockingDeque<AudioCueCursor>(polyphony);
-		cursors = new AudioCueCursor[polyphony];
-		
-		for (int i = 0; i < polyphony; i++)
-		{	
-			cursors[i] = new AudioCueCursor(i);
-			cursors[i].resetInstance();
-			availables.add(cursors[i]);
-		}
-		
-		// default readBuffer
-		readBuffer = new float[DEFAULT_BUFFER_FRAMES * 2];
-		
-		// default pan calculation function
-		setPanType(PanType.CENTER_LINEAR);
-		
-		listeners = new CopyOnWriteArrayList<AudioCueListener>();
-	}
-	
+
 	// Currently assumes stereo format ("CD Quality") 
 	private static float[] loadURL(URL url) throws UnsupportedAudioFileException, 
 			IOException
@@ -469,7 +469,7 @@ public class AudioCue implements AudioMixerTrack
 		}
 		
 		return temp;
-	}	
+	}
 	
 	/**
 	 * Readies this {@code AudioCue} for media play by instantiating, registering,
