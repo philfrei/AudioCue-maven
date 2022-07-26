@@ -869,13 +869,21 @@ public class AudioCue implements AudioMixerTrack
 	 * {@code AudioCueListener.instanceEventOccurred} method 
 	 * will be called with the argument
 	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}.
+	 * <p>
+	 * If the {@code AudioCue} has not been opened, calls to
+	 * {@code AudioMixerTrack.readTrack()} can be used to advance 
+	 * the cursors and produce a buffer-length float[] array of the
+	 * mix of all the playing instances without sending the data on
+	 * to a {@code SourceDataLine} to be heard. 
 	 * 
 	 * @param instanceID - an {@code int} used to identify an 
 	 *                     {@code AudioCue} instance
 	 * @throws IllegalStateException if instance is not active
 	 *         or if instance is already playing
+	 *         
 	 * @see AudioCueListener#instanceEventOccurred(AudioCueInstanceEvent)
 	 * @see AudioCueInstanceEvent.Type#START_INSTANCE
+	 * @see AudioMixerTrack#readTrack()
 	 */
 	public void start(int instanceID)
 	{
