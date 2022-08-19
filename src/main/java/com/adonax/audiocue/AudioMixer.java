@@ -281,7 +281,7 @@ public class AudioMixer
 			audioBytes = new byte[sdlByteBufferSize];
 			readBuffer = new float[readBufferSize];
 			
-			sdl = AudioCue.getSourceDataLine(mixer, AudioCue.info);
+			sdl = AudioCueFunctions.getSourceDataLine(mixer, AudioCue.info);
 			sdl.open(AudioCue.audioFormat, sdlByteBufferSize);
 			sdl.start();
 		}
@@ -303,7 +303,7 @@ public class AudioMixer
 		    	}
 		    	Arrays.fill(readBuffer, 0);
 				readBuffer = fillBufferFromTracks(readBuffer);
-				audioBytes = AudioCue.fromPcmToAudioBytes(audioBytes, readBuffer);
+				audioBytes = AudioCueFunctions.fromPcmToAudioBytes(audioBytes, readBuffer);
 				sdl.write(audioBytes, 0, sdlByteBufferSize);
 			}
 

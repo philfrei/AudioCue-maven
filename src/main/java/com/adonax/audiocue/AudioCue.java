@@ -476,7 +476,8 @@ public class AudioCue implements AudioMixerTrack
 	 * Returns a copy of the signed, normalized float PCM array for this 
 	 * {@code AudioCue}.
 	 * 
-	 * @return 
+	 * @return a {@code float[]} new copy of the internal array of the
+	 * PCM for the {@code AudioCue}
 	 */
 	public float[] getPcmCopy() {
 		return Arrays.copyOf(cue, cue.length);
@@ -1504,12 +1505,10 @@ public class AudioCue implements AudioMixerTrack
 			sdlBufferSize = bufferFrames * 4;
 			audioBytes = new byte[sdlBufferSize];
 					
-			sdl = getSourceDataLine(mixer, info);
+			sdl = AudioCueFunctions.getSourceDataLine(mixer, info);
 			sdl.open(audioFormat, sdlBufferSize);
 			sdl.start();
 		}
-		
-		
 		
 		// Audio Thread Code
 		public void run()
@@ -1517,7 +1516,7 @@ public class AudioCue implements AudioMixerTrack
 			while(playerRunning)
 			{
 				readBuffer = fillBuffer(readBuffer);
-				audioBytes = fromPcmToAudioBytes(audioBytes, readBuffer);
+				audioBytes = AudioCueFunctions.fromPcmToAudioBytes(audioBytes, readBuffer);
 				sdl.write(audioBytes, 0, sdlBufferSize);
 			}
 			sdl.drain();
@@ -1678,73 +1677,6 @@ public class AudioCue implements AudioMixerTrack
 				+ cue[stereoIndex + 1] * ((intIndex + 1) - idx));
 
 		return audioVals;
-	}
-	
-	/**
-	 * Converts an array of signed, normalized float PCM values to a 
-	 * corresponding byte array using 16-bit, little-endian encoding. 
-	 * This is the sole audio format supported by this application, 
-	 * and is expected by the {@code SourceDataLine} configured for
-	 * media play. Because each float value is converted into two  
-	 * bytes, the receiving array, {@code audioBytes}, must be twice
-	 * the length of the array of data to be converted, {@code sourcePcm}.
-	 * Failure to comply will throw an {@code IllegalArgumentException}.
-	 * 
-	 * @param audioBytes - an byte array ready to receive the converted 
-	 * 					audio data.	Should be twice the length of 
-	 * 					{@code buffer}.
-	 * @param sourcePcm - a float array with signed, normalized PCM data to
-	 * 					be converted 
-	 * @return the byte array {@code audioBytes} after is has been populated
-	 * 					with the converted data
-	 * @throws IllegalArgumentException if destination array is not exactly
-	 * 					twice the length of the source array
-	 */
-	public static byte[] fromPcmToAudioBytes(byte[] audioBytes, float[] sourcePcm)
-	{
-		if (sourcePcm.length * 2 != audioBytes.length) {
-			throw new IllegalArgumentException(
-					"Destination array must be exactly twice the length of the source array");
-		}
-		
-		for (int i = 0, n = sourcePcm.length; i < n; i++)
-		{
-			sourcePcm[i] *= 32767;
-			
-			audioBytes[i*2] = (byte) sourcePcm[i];
-			audioBytes[i*2 + 1] = (byte)((int)sourcePcm[i] >> 8 );
-		}
-	
-		return audioBytes;
-	}
-
-	/**
-	 * Obtains a {@code SourceDataLine} that is available for use from the 
-	 * specified {@code javax.sound.sampled.Mixer} and that matches the
-	 * description in the specified {@code Line.Info}.   
-	 * 
-	 * @param mixer - an {@code javax.sound.sampled.Mixer}
-	 * @param info - describes the desired line 
-	 * @return a a line that is available for use from the specified
-	 * 				{@code javax.sound.sampled.Mixer} and that matches the 
-	 * 				description	in the specified {@code Line.Info} object
-	 * @throws LineUnavailableException if a matching line is not available
-	 */
-	public static SourceDataLine getSourceDataLine(Mixer mixer, 
-			Info info) throws LineUnavailableException
-	{
-		SourceDataLine sdl;
-		
-		if (mixer == null)
-		{
-			sdl = (SourceDataLine)AudioSystem.getLine(info);
-		}
-		else
-		{
-			sdl = (SourceDataLine)mixer.getLine(info);
-		}
-		
-		return sdl;
 	}
 	
 	@Override  // AudioMixerTrack interface

@@ -2,7 +2,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.adonax</groupId>
 	<artifactId>audiocue</artifactId>
-	<version>2.1.1-SNAPSHOT</version>
+	<version>2.1.2-SNAPSHOT</version>
 
 	<name>AudioCue</name>
 	<description>AudioCue is an audio-playback class modeled on javax.sound.sampled.Clip, that has
