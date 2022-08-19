@@ -96,7 +96,7 @@ public class AudioMixer
 	 * Constructor for {@code AudioMixer}, using default
 	 * settings: 
 	 * Mixer           = system default
-	 * Buffer size     = 8196 frames
+	 * Buffer size     = 8192 frames
 	 * Thread priority = 10.
 	 * 
 	 * The buffer size pertains to the frames collected in

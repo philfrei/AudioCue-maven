@@ -487,13 +487,17 @@ public class AudioCue implements AudioMixerTrack
 	 * and running the inner class {@code AudioCuePlayer} with default settings.
 	 * Internally, the registered {@code AudioCuePlayer} instance obtains and 
 	 * configures a {@code javax.sound.sampled.SourceDataLine} to write to the 
-	 * default system {@code javax.sound.sampled.Mixer}, and will make use of the default internal 
-	 * buffer size of 1024 PCM frames, and will run with the default thread priority 
-	 * setting of 10.
+	 * default system {@code javax.sound.sampled.Mixer}, and will make use of the 
+	 * default internal buffer size of 1024 PCM frames, and will run with the 
+	 * default thread priority setting of 10.
 	 * <p>
 	 * Once completed, this {@code AudioCue} is marked open and the 
 	 * {@code AudioCueListener.audioCueOpened} method is called on every registered 
 	 * {@code AudioCueListener}.
+	 * <p>
+	 * NOTE: data <em>can</em> be read from an {@code AudioCue} even if it is not open. The 
+	 * data that is read from an unopened {@code AudioCue} will not be written to
+	 * a {@code SourceDataLine} and will not be heard.
 	 * 
 	 * @throws IllegalStateException if this {@code AudioCue} is already open
 	 * @throws LineUnavailableException if unable to obtain a {@code SourceDataLine} 
@@ -524,7 +528,11 @@ public class AudioCue implements AudioMixerTrack
 	 * Once completed, this {@code AudioCue} is marked open and the 
 	 * {@code AudioCueListener.audioCueOpened} method is called on every registered 
 	 * {@code AudioCueListener}.
-	 * 
+	 * <p>
+	 * NOTE: data <em>can</em> be read from an {@code AudioCue} even if it is not open. The 
+	 * data that is read from an unopened {@code AudioCue} will not be written to
+	 * a {@code SourceDataLine} and will not be heard.
+	 *  
 	 * @param bufferFrames - an {@code int} specifying the size of the internal
 	 * 						 buffer in PCM frames
 	 * @throws IllegalStateException if this {@code AudioCue} is already open
@@ -557,10 +565,14 @@ public class AudioCue implements AudioMixerTrack
 	 * 10 is generally safe given that to audio processing spending a majority of
 	 * its time in a blocked state, this method allows specification of a lower 
 	 * priority setting.
-	 * 
+	 * <p>
 	 * Once completed, this {@code AudioCue} is marked open and the 
 	 * {@code audioCueOpened} method is called on every registered 
 	 * {@code AudioCueListener}.
+	 * <p>
+	 * NOTE: data <em>can</em> be read from an {@code AudioCue} even if it is not open. The 
+	 * data that is read from an unopened {@code AudioCue} will not be written to
+	 * a {@code SourceDataLine} and will not be heard. 
 	 * 
 	 * @param mixer          - a {@code javax.sound.sampled.Mixer}. If {@code null}, 
 	 *  					   the system default mixer is used.
@@ -615,6 +627,10 @@ public class AudioCue implements AudioMixerTrack
 	 * Once completed, the {@code AudioCue} is marked open and the 
 	 * {@code AudioCueListener.audioCueOpened} method is called on every 
 	 * registered {@code AudioCueListener}.
+	 * <p>
+	 * NOTE: data <em>can</em> be read from an {@code AudioCue} even if it is not open. The 
+	 * data that is read from an unopened {@code AudioCue} will not be written to
+	 * a {@code SourceDataLine} and will not be heard.
 	 * 
 	 * @param audioMixer - the {@code AudioMixer} that will handle media output
 	 * 					   for this {@code AudioCue}
@@ -764,18 +780,26 @@ public class AudioCue implements AudioMixerTrack
 	}
 	
 	/**
-	 * Plays an {@code AudioCue} instance from the beginning, with
-	 * default values: full volume, center pan and at normal speed, 
-	 * and returns an {@code int} identifying the instance, or, 
-	 * returns -1 if no {@code AudioCue} instance is available. 
+	 * Obtains an {@code AudioCue} instance and if the 
+	 * {@code AudioCue} has been <em>opened</em>, starts playing
+	 * from the beginning, with default values: full volume, 
+	 * center pan and at normal speed, and returns an {@code int}
+	 * identifying the instance, or, returns -1 if no 
+	 * {@code AudioCue} instance is available. 
 	 * <p>
-	 * If an {@code AudioCue} instance is able to play, the 
+	 * If an {@code AudioCue} instance is available to play, the 
 	 * {@code AudioCueListener.instanceEventOccurred} method
 	 * will be called twice, with arguments
      * {@code AudioCueInstanceEvent.Type.OBTAIN_INSTANCE} and
 	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}. This
 	 * instance will be set to automatically recycle back into the 
 	 * pool of available instances when playing completes.
+	 * <p>
+	 * NOTE: the {@code play} method <em>can</em> be called on an 
+	 * unopened {@code AudioCue}. If unopened, the 
+	 * {@code AudioCuePlayer.readTrack} method will advance the 
+	 * {@code AudioCueCursor} and return a buffer of PCM data when 
+	 * called, but will not write the data to the sound system.
 	 * 
 	 * @return an {@code int} identifying the playing instance,
 	 *         or -1 if no instance is available
@@ -789,18 +813,26 @@ public class AudioCue implements AudioMixerTrack
 	}	
 	
 	/**
-	 * Plays an {@code AudioCue} instance from the beginning, at 
-	 * the given volume, at center pan, and at normal speed, and
-	 * returns an {@code int} identifying the instance, or, returns
+	 * Obtains an {@code AudioCue} instance and if the 
+	 * {@code AudioCue} has been <em>opened</em>, starts playing 
+	 * from the beginning, at the given volume, at the default 
+	 * center pan, and at the default normal speed, and returns 
+	 * an {@code int} identifying the instance, or, returns
 	 * -1 if no {@code AudioCue} instance is available. 
 	 * <p>
-	 * If an {@code AudioCue} instance is able to play, the 
+	 * If an {@code AudioCue} instance is available to play, the 
 	 * {@code AudioCueListener.instanceEventOccurred} method 
 	 * will be called twice, with arguments
      * {@code AudioCueInstanceEvent.Type.OBTAIN_INSTANCE} and
 	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}. This
 	 * instance will be set to automatically recycle back into the 
 	 * pool of available instances when playing completes.
+	 * <p>
+	 * NOTE: the {@code play} method <em>can</em> be called on an 
+	 * unopened {@code AudioCue}. If unopened, the 
+	 * {@code AudioCuePlayer.readTrack} method will advance the 
+	 * {@code AudioCueCursor} and return a buffer of PCM data when 
+	 * called, but will not write the data to the sound system.
 	 *  
 	 * @param volume - a {@code double} in the range [0, 1]
 	 * @return an {@code int} identifying the playing instance,
@@ -815,18 +847,26 @@ public class AudioCue implements AudioMixerTrack
 	}	
 	
 	/**
-	 * Plays an {@code AudioCue} instance from the beginning, at 
-	 * the given volume, pan, speed and number of repetitions, and 
-	 * returns an {@code int} identifying the instance, or, returns 
-	 * -1 if no {@code AudioCue} instance is available. 
+	 * Obtains an {@code AudioCue} instance and if the 
+	 * {@code AudioCue} has been <em>opened</em>, starts playing 
+	 * from the beginning, at the given volume, pan, speed and 
+	 * number of repetitions, and returns an {@code int} identifying 
+	 * the instance, or, returns -1 if no {@code AudioCue} instance 
+	 * is available.
 	 * <p>
-	 * If an {@code AudioCue} instance is able to play, the 
-	 * {@code AudioCueListener.instanceEventOccurred} method 
+	 * If an {@code AudioCue} instance is available for play back, 
+	 * the {@code AudioCueListener.instanceEventOccurred} method 
 	 * will be called twice, with arguments
      * {@code AudioCueInstanceEvent.Type.OBTAIN_INSTANCE} and
 	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}. This
 	 * instance will be set to automatically recycle back into the 
 	 * pool of available instances when playing completes.
+	 * <p>
+	 * NOTE: the {@code play} method <em>can</em> be called on an 
+	 * unopened {@code AudioCue}. If unopened, the 
+	 * {@code AudioCuePlayer.readTrack} method will advance the 
+	 * {@code AudioCueCursor} and return a buffer of PCM data when 
+	 * called, but will not write the data to the sound system. 
 	 * 
 	 * @param volume - a {@code double} within the range [0, 1]
 	 * @param pan    - a {@code double} within the range [-1, 1]
