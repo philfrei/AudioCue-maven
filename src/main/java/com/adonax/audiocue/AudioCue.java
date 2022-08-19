@@ -13,6 +13,7 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.Line.Info;
 
+import com.adonax.audiocue.AudioCueFunctions.PanType;
 import com.adonax.audiocue.AudioCueInstanceEvent.Type;
 
 import javax.sound.sampled.LineUnavailableException;
@@ -254,72 +255,7 @@ public class AudioCue implements AudioMixerTrack
 	{
 		listeners.remove(listener);
 	}
-	
-	/**
-	 * The {@code enum Type} is a repository of functions 
-	 * used to perform volume-based panning for stereo media. 
-	 * Each function takes a pan setting as an input, ranging 
-	 * from -1 (100% left) to 1 (100% right) with 0 being the 
-	 * center pan setting. 
-	 */
-	public static enum PanType 
-	{
-		/**
-		 * Represents a panning function that uses linear 
-		 * gradients that taper from the center to the edges
-		 * on the weak side, and the combined volume is 
-		 * stronger at the center than at the edges. 
-		 * For the pan values -1 to 0, the 
-		 * left channel factor is kept at full volume ( = 1) 
-		 * and the right channel factor is tapered via a 
-		 * linear function from 0 to 1. 
-		 * For pan values from 0 to 1, the left channel factor 
-		 * is tapered via a linear function from 0 to 1 and the 
-		 * right channel is kept at full volume ( = 1).
-		 */
-		CENTER_LINEAR(  
-				x -> Math.max(0, Math.min(1, 1 - x)),
-				x -> Math.max(0, Math.min(1, 1 + x))
-				), 
-		/**
-		 * Represents a panning function that uses linear 
-		 * gradients that taper from edge to edge, and the 
-		 * combined volume is stronger at the edges than 
-		 * at the center. For pan values -1 to 1 the left 
-		 * channel factor is tapered with a linear function 
-		 * from 1 to 0, and the right channel factor is 
-		 * tapered via a linear function from 0 to 1. 
-		 */	
-		FULL_LINEAR(
-				x -> 1 - ((1 + x) / 2),
-				x -> (1 + x) / 2
-				),
-		/**
-		 * Represents a panning function that uses
-		 * circle-shaped gradients that taper from edge to
-		 * edge, and the combined volume is close to uniform 
-		 * for all pan settings. For the pan values -1 to 1, 
-		 * the left channel factor is tapered via a {@code cos}
-		 * function with values ranging from 1 to 0, and the 
-		 * right channel factor is tapered via a {@code sin} 
-		 * function with values ranging from 0 to 1.
-		 */
-		CIRCULAR(
-				x -> (float)(Math.cos(Math.PI * ((1 + x) / 4))),
-				x -> (float)(Math.sin(Math.PI * ((1 + x) / 4)))
-				);
-	
-		final Function<Float, Float> left;
-		final Function<Float, Float> right;
-	
-		PanType(Function<Float, Float> left, 
-				Function<Float, Float> right)
-		{
-			this.left = left;
-			this.right = right;
-		}
-	}
-		
+			
 	private Function<Float, Float> panL;
 	private Function<Float, Float> panR;
 	

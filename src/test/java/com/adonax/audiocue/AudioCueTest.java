@@ -7,7 +7,7 @@ import javax.sound.sampled.LineUnavailableException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import com.adonax.audiocue.AudioCue.PanType;
+import com.adonax.audiocue.AudioCueFunctions.PanType;
 
 class AudioCueTest {
 	
@@ -298,7 +298,7 @@ class AudioCueTest {
 	@Test
 	void testPanFunctions() {
 
-		AudioCue.PanType panType = AudioCue.PanType.FULL_LINEAR;
+		PanType panType = PanType.FULL_LINEAR;
 		Function<Float, Float> panL = panType.left;
 		Function<Float, Float> panR = panType.right;
 		
@@ -334,7 +334,7 @@ class AudioCueTest {
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 		
-		panType = AudioCue.PanType.CENTER_LINEAR;
+		panType = PanType.CENTER_LINEAR;
 		panL = panType.left;
 		panR = panType.right;
 		
@@ -362,7 +362,7 @@ class AudioCueTest {
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 
-		panType = AudioCue.PanType.CIRCULAR;
+		panType = PanType.CIRCULAR;
 		panL = panType.left;
 		panR = panType.right;
 		
@@ -412,7 +412,7 @@ class AudioCueTest {
 		testCue.setVolume(instance0, 1);
 
 		// Tests for FULL_LINEAR type pan.
-		testCue.setPanType(AudioCue.PanType.FULL_LINEAR);
+		testCue.setPanType(PanType.FULL_LINEAR);
 
 		// Pan = -1 (full left)
 		float panVal = -1;
@@ -452,7 +452,7 @@ class AudioCueTest {
 		}
 
 		/////////////////////////////////////////////////////////////////////////
-		testCue.setPanType(AudioCue.PanType.CENTER_LINEAR);
+		testCue.setPanType(PanType.CENTER_LINEAR);
 
 		// Pan = -1 (full left)
 		testCue.stop(instance0);
@@ -494,7 +494,7 @@ class AudioCueTest {
 		}
 		
 		/////////////////////////////////////////////////////////////////////////
-		testCue.setPanType(AudioCue.PanType.CIRCULAR);
+		testCue.setPanType(PanType.CIRCULAR);
 
 		// Pan = -1 (full left)
 		testCue.stop(instance0);
@@ -548,7 +548,7 @@ class AudioCueTest {
 		}
 		
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
-		testCue.setPanType(AudioCue.PanType.FULL_LINEAR);
+		testCue.setPanType(PanType.FULL_LINEAR);
 		int instance0 = testCue.obtainInstance();
 		testCue.setVolume(instance0, 1);
 		testCue.setPan(instance0, -1);
