@@ -301,7 +301,8 @@ public class AudioCue implements AudioMixerTrack
 		readBuffer = new float[DEFAULT_BUFFER_FRAMES * 2];
 		
 		// default pan calculation function
-		setPanType(PanType.CENTER_LINEAR);
+		// TODO select equal-power type as default
+		setPanType(PanType.LR_CUT_LINEAR);
 		
 		listeners = new CopyOnWriteArrayList<AudioCueListener>();
 	}
@@ -1145,7 +1146,7 @@ public class AudioCue implements AudioMixerTrack
 	 * @param pan        - a {@code double} ranging from -1 to 1
 	 * @throws IllegalStateException if instance is not active
 	 * @see #setPan(int, double)
-	 * @see AudioCue.PanType
+	 * @see AudioCueFunctions.PanType
 	 * @see #setPanType(PanType)
 	 */
 	public void setPan(int instanceID, double pan)

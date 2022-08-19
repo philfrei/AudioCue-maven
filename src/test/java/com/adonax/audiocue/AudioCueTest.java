@@ -240,7 +240,7 @@ class AudioCueTest {
 
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
 		// With CENTER_LINEAR, pan 0 leaves both L & R values as is.
-		testCue.setPanType(PanType.CENTER_LINEAR);
+		testCue.setPanType(PanType.LR_CUT_LINEAR);
 		
 		// This sets variable needed for reading track (cursor.isPlaying) but 
 		// does not output to SDL because we haven't opened the AudioCue.
@@ -273,7 +273,7 @@ class AudioCueTest {
 
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
 		// With CENTER_LINEAR, pan 0 leaves both L & R values as is.
-		testCue.setPanType(PanType.CENTER_LINEAR);
+		testCue.setPanType(PanType.LR_CUT_LINEAR);
 				
 		// Default play() method sets volume to initial value of 1f.
 		int instance0 = testCue.play();
@@ -334,7 +334,7 @@ class AudioCueTest {
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 		
-		panType = PanType.CENTER_LINEAR;
+		panType = PanType.LR_CUT_LINEAR;
 		panL = panType.left;
 		panR = panType.right;
 		
@@ -362,7 +362,7 @@ class AudioCueTest {
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 
-		panType = PanType.CIRCULAR;
+		panType = PanType.SINE_LAW;
 		panL = panType.left;
 		panR = panType.right;
 		
@@ -452,7 +452,7 @@ class AudioCueTest {
 		}
 
 		/////////////////////////////////////////////////////////////////////////
-		testCue.setPanType(PanType.CENTER_LINEAR);
+		testCue.setPanType(PanType.LR_CUT_LINEAR);
 
 		// Pan = -1 (full left)
 		testCue.stop(instance0);
@@ -494,7 +494,7 @@ class AudioCueTest {
 		}
 		
 		/////////////////////////////////////////////////////////////////////////
-		testCue.setPanType(PanType.CIRCULAR);
+		testCue.setPanType(PanType.SINE_LAW);
 
 		// Pan = -1 (full left)
 		testCue.stop(instance0);
@@ -590,7 +590,7 @@ class AudioCueTest {
 
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
 		// With CENTER_LINEAR, default pan 0 leaves both L & R values as is.
-		testCue.setPanType(PanType.CENTER_LINEAR);
+		testCue.setPanType(PanType.LR_CUT_LINEAR);
 		
 		int instance0 = testCue.obtainInstance();
 		testCue.setVolume(instance0, 1);
@@ -632,7 +632,7 @@ class AudioCueTest {
 		
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
 		// With CENTER_LINEAR, default pan 0 leaves both L & R values as is.
-		testCue.setPanType(PanType.CENTER_LINEAR);
+		testCue.setPanType(PanType.LR_CUT_LINEAR);
 		
 		int instance0 = testCue.obtainInstance();
 		testCue.setVolume(instance0, 1);

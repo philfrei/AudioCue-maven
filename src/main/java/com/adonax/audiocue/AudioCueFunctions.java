@@ -40,10 +40,10 @@ public class AudioCueFunctions {
 		 * is tapered via a linear function from 0 to 1 and the 
 		 * right channel is kept at full volume ( = 1).
 		 */
-		CENTER_LINEAR(  
+		LR_CUT_LINEAR(  
 				x -> Math.max(0, Math.min(1, 1 - x)),
 				x -> Math.max(0, Math.min(1, 1 + x))
-				), 
+			), 
 		/**
 		 * Represents a panning function that uses linear 
 		 * gradients that taper from edge to edge, and the 
@@ -56,21 +56,33 @@ public class AudioCueFunctions {
 		FULL_LINEAR(
 				x -> 1 - ((1 + x) / 2),
 				x -> (1 + x) / 2
-				),
+			),
 		/**
-		 * Represents a panning function that uses
-		 * circle-shaped gradients that taper from edge to
-		 * edge, and the combined volume is close to uniform 
-		 * for all pan settings. For the pan values -1 to 1, 
-		 * the left channel factor is tapered via a {@code cos}
-		 * function with values ranging from 1 to 0, and the 
-		 * right channel factor is tapered via a {@code sin} 
-		 * function with values ranging from 0 to 1.
+		 * Represents a panning function that uses square
+		 * roots to taper the amplitude from edge to edge.
+		 * <p>
+		 * For inputs -1 (full left) to 1 (full right):<br>
+		 * Left vol factor = Math.sqrt(1 - (1 + x) / 2.0) <br>
+		 * Right vol factor = Math.sqrt((1 + x) / 2.0)
 		 */
-		CIRCULAR(
-				x -> (float)(Math.cos(Math.PI * ((1 + x) / 4))),
-				x -> (float)(Math.sin(Math.PI * ((1 + x) / 4)))
-				);
+		SQUARE_LAW(
+				x -> (float)(Math.sqrt(1 - (1 + x) / 2.0)),
+				x -> (float)(Math.sqrt((1 + x) / 2.0))
+			),
+
+		/**
+		 * Represents a panning function that uses sines
+		 * to taper the amplitude from edge to edge.
+		 * <p>
+		 * For inputs -1 (full left) to 1 (full right):<br>
+		 * Left vol factor = Math.sin((Math.PI / 2 ) * (1 - (1 + x) / 2.0)) <br>
+		 * Right vol factor = Math.sin((Math.PI / 2 ) * ((1 + x) / 2.0))
+		 * 
+		 */
+		SINE_LAW(
+				x -> (float)(Math.sin((Math.PI / 2) * (1 - (1 + x) / 2.0))),
+				x -> (float)(Math.sin((Math.PI / 2 ) * ((1 + x) / 2.0)))
+			);
 	
 		final Function<Float, Float> left;
 		final Function<Float, Float> right;
