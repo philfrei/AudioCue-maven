@@ -14,6 +14,7 @@ import javax.sound.sampled.DataLine;
 import javax.sound.sampled.Line.Info;
 
 import com.adonax.audiocue.AudioCueFunctions.PanType;
+import com.adonax.audiocue.AudioCueFunctions.VolType;
 import com.adonax.audiocue.AudioCueInstanceEvent.Type;
 
 import javax.sound.sampled.LineUnavailableException;
@@ -256,6 +257,13 @@ public class AudioCue implements AudioMixerTrack
 		listeners.remove(listener);
 	}
 			
+	private Function<Float, Float> vol;
+
+	public void setVolType(VolType volType)
+	{
+		vol = volType.vol;
+	}
+	
 	private Function<Float, Float> panL;
 	private Function<Float, Float> panR;
 	
@@ -300,9 +308,11 @@ public class AudioCue implements AudioMixerTrack
 		// default readBuffer
 		readBuffer = new float[DEFAULT_BUFFER_FRAMES * 2];
 		
+		// default volume function
+		setVolType(VolType.EXP_X4);
+		
 		// default pan calculation function
-		// TODO select equal-power type as default
-		setPanType(PanType.LR_CUT_LINEAR);
+		setPanType(PanType.SINE_LAW);
 		
 		listeners = new CopyOnWriteArrayList<AudioCueListener>();
 	}
@@ -1481,12 +1491,12 @@ public class AudioCue implements AudioMixerTrack
 			{
 				AudioCueCursor acc = cursors[ci];
 				/*
-				 * Usually, pan won't change, so let's 
-				 * store value and only recalculate when 
-				 * it changes.
+				 * Usually, these won't change, so initialize 
+				 * and store value and only recalculate upon change.
 				 */
 				float panFactorL = panL.apply(acc.pan);
 				float panFactorR = panR.apply(acc.pan);
+				float volFactor = vol.apply(acc.volume);
 				
 				for (int i = 0; i < bufferLength; i += 2)
 				{
@@ -1504,6 +1514,7 @@ public class AudioCue implements AudioMixerTrack
 						if (acc.targetVolumeSteps == 0) {
 							acc.volume = acc.targetVolume;
 						}
+						volFactor = vol.apply(acc.volume);
 					}
 					
 					// has pan setting changed? if so, recalc
@@ -1520,7 +1531,6 @@ public class AudioCue implements AudioMixerTrack
 						} else { 
 							acc.pan = acc.targetPan;
 						}
-						
 						panFactorL = panL.apply(acc.pan);
 						panFactorR = panR.apply(acc.pan);
 					}
@@ -1535,9 +1545,9 @@ public class AudioCue implements AudioMixerTrack
 					}
 					
 					readBuffer[i] += (audioVals[0] 
-							* acc.volume * panFactorL);
+							* volFactor * panFactorL);
 					readBuffer[i + 1] += (audioVals[1] 
-							* acc.volume * panFactorR);
+							* volFactor * panFactorR);
 					
 					// SET UP FOR NEXT ITERATION
 					// has speed setting changed? if so, recalc

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import com.adonax.audiocue.AudioCueFunctions.PanType;
+import com.adonax.audiocue.AudioCueFunctions.VolType;
 
 class AudioCueTest {
 	
@@ -240,7 +241,7 @@ class AudioCueTest {
 
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
 		// With CENTER_LINEAR, pan 0 leaves both L & R values as is.
-		testCue.setPanType(PanType.LR_CUT_LINEAR);
+		testCue.setPanType(PanType.LEFT_RIGHT_CUT_LINEAR);
 		
 		// This sets variable needed for reading track (cursor.isPlaying) but 
 		// does not output to SDL because we haven't opened the AudioCue.
@@ -273,7 +274,8 @@ class AudioCueTest {
 
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
 		// With CENTER_LINEAR, pan 0 leaves both L & R values as is.
-		testCue.setPanType(PanType.LR_CUT_LINEAR);
+		testCue.setPanType(PanType.LEFT_RIGHT_CUT_LINEAR);
+		testCue.setVolType(VolType.EXP_X4);
 				
 		// Default play() method sets volume to initial value of 1f.
 		int instance0 = testCue.play();
@@ -290,9 +292,11 @@ class AudioCueTest {
 			// The PCM out values should progressively diminish as the progressively lowers. 
 			Assertions.assertTrue(cueData[i] - testBuffer[i] < cueData[i + 2] - testBuffer[i + 2]);
 		}
-		
-		Assertions.assertEquals(targetVolume, testCue.getVolume(instance0));		
-		Assertions.assertEquals(cueData[lastFrame] * targetVolume, testBuffer[lastFrame]);
+		// Expect the cursor's volume to have reached the target volume.
+		Assertions.assertEquals(targetVolume, testCue.getVolume(instance0));
+		// Expect the last frame value to reflect the volumeFactor
+		float volFactor = AudioCueFunctions.VolType.EXP_X4.vol.apply((float)targetVolume);
+		Assertions.assertEquals(cueData[lastFrame] * volFactor, testBuffer[lastFrame]);
 	}
 
 	@Test
@@ -334,7 +338,7 @@ class AudioCueTest {
 		Assertions.assertEquals(expectedLeft, volL, zeroDelta);
 		Assertions.assertEquals(expectedRight, volR, zeroDelta);
 		
-		panType = PanType.LR_CUT_LINEAR;
+		panType = PanType.LEFT_RIGHT_CUT_LINEAR;
 		panL = panType.left;
 		panR = panType.right;
 		
@@ -452,7 +456,7 @@ class AudioCueTest {
 		}
 
 		/////////////////////////////////////////////////////////////////////////
-		testCue.setPanType(PanType.LR_CUT_LINEAR);
+		testCue.setPanType(PanType.LEFT_RIGHT_CUT_LINEAR);
 
 		// Pan = -1 (full left)
 		testCue.stop(instance0);
@@ -518,9 +522,24 @@ class AudioCueTest {
 		
 		testBuffer = testCue.readTrack();
 		for (int i = 0; i < cueLength; i+=2) {
-			Assertions.assertEquals(cueData[i] * Math.cos(Math.PI * 0.25), testBuffer[i], zeroDelta);
-			Assertions.assertEquals(cueData[i + 1] * Math.sin(Math.PI * 0.25), testBuffer[i + 1], zeroDelta);
+			Assertions.assertEquals(cueData[i] * Math.sin((Math.PI / 2 * 0.5)), testBuffer[i], zeroDelta);
+			Assertions.assertEquals(cueData[i + 1] * Math.sin(Math.PI / 2 * (1 - 0.5)), testBuffer[i + 1], zeroDelta);
 		}
+		
+		
+		// Check an intermediary spot
+		testCue.stop(instance0);
+		testCue.setFramePosition(instance0, 0);
+		panVal = 0.5f;
+		testCue.setPan(instance0, panVal);
+		testCue.start(instance0);
+		
+		testBuffer = testCue.readTrack();
+		for (int i = 0; i < cueLength; i+=2) {
+			Assertions.assertEquals(cueData[i] * Math.sin(Math.PI / 2 * (1 - (1 + panVal) / 2)), testBuffer[i], zeroDelta);
+			Assertions.assertEquals(cueData[i + 1] * Math.sin(Math.PI / 2 * ((1 + panVal) / 2)), testBuffer[i + 1], zeroDelta);
+		}
+		
 
 		// Pan = 1 (full right)
 		testCue.stop(instance0);
@@ -590,7 +609,7 @@ class AudioCueTest {
 
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
 		// With CENTER_LINEAR, default pan 0 leaves both L & R values as is.
-		testCue.setPanType(PanType.LR_CUT_LINEAR);
+		testCue.setPanType(PanType.LEFT_RIGHT_CUT_LINEAR);
 		
 		int instance0 = testCue.obtainInstance();
 		testCue.setVolume(instance0, 1);
@@ -632,7 +651,7 @@ class AudioCueTest {
 		
 		AudioCue testCue = AudioCue.makeStereoCue(cueData, "testCue", 1);
 		// With CENTER_LINEAR, default pan 0 leaves both L & R values as is.
-		testCue.setPanType(PanType.LR_CUT_LINEAR);
+		testCue.setPanType(PanType.LEFT_RIGHT_CUT_LINEAR);
 		
 		int instance0 = testCue.obtainInstance();
 		testCue.setVolume(instance0, 1);
