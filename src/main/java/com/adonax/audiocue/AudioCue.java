@@ -557,7 +557,7 @@ public class AudioCue implements AudioMixerTrack
 		player = new AudioCuePlayer(mixer, bufferFrames);
 		Thread t = new Thread(player);
 
-		t.setPriority(Math.max(1, Math.min(10, threadPriority)));
+		t.setPriority(threadPriority);
 		playerRunning = true;
 		t.start();
 		
