@@ -32,12 +32,12 @@ public class AudioCueFunctions {
 	 * of the more costly dB calculation: exp(x * 6.908)/1000 that
 	 * spans a range of 60 dB.
 	 * <p>
-	 * A straight use of linear values will tend to lead to 
+	 * A straight use of linear values will tend to result in 
 	 * hard-to-perceive changes in the upper range and more extreme 
-	 * sensitivity in the lower values. But the 60dB range scale
-	 * and approximation may have the opposite problem, with values 
-	 * below 0.5 quickly becoming inaudible. For this reason, a
-	 * selection of intermediate exponential curves are offered.
+	 * sensitivity with the lower values. But with a 60dB dynamic range,
+	 * the x^4 approximation may have the opposite problem, with 
+	 * values below 0.5 quickly becoming inaudible. For this reason, 
+	 * a selection of intermediate exponential curves are offered.
 	 * 
 	 * @version 2.1.0
 	 * @since 2.1.0
@@ -47,11 +47,64 @@ public class AudioCueFunctions {
 	 */	
 	public static enum VolType 
 	{	
+		/**
+		 * Represents an amplitude function that directly uses linear
+		 * linear values ranging from 0 (silent) to 1 (maximum amplitude). 
+		 * This volume control tends to result in most of the
+		 * amplification occurring in the lower end of the numerical range.
+		 * @see VolType
+		 */	
 		LINEAR( x -> x),
+		/**
+		 * Represents an amplitude function that tends to result in most
+		 * of the perceived amplification taking place in the lower numerical
+		 * range, but less so than the LINEAR function. Input values, ranging
+		 * from 0 (silent) to 1 (full volume) are mapped to volume factors
+		 * with the function <strong>f(x) = x * x</strong>.
+		 * @see VolType 
+		 */
 		EXP_X2 ( x -> (float)x * x),
+		/**
+		 * Represents an 'intermediate' amplitude function that is somewhat 
+		 * louder in the lower numeric range than EXP_X4, but quieter in
+		 * the lower numeric range than EXP_X2. Input values, ranging
+		 * from <strong>0</strong> (<em>silent</em>) to <strong>1</strong> 
+		 * (<em>full volume</em>) are mapped to volume factors with the 
+		 * function <strong>f(x) = x * x * x</strong>.
+		 * @see VolType
+		 */
 		EXP_X3 ( x -> (float)x * x * x),
+		/**
+		 * Represents an amplitude function that is commonly used to map 
+		 * the linear values ranging from <strong>0</strong> (<em>silent</em>) 
+		 * to <strong>1</strong> (<em>full volume</em>) to volume factors 
+		 * that approximate the geometric curve of human hearing. With a 
+		 * dynamic range of 60 dB, values below 0.5 can quickly become
+		 * inaudible. For this reason, functions with louder lower ends
+		 * (EXP_X3, EXP_X2) are also offered. The mapping function is 
+		 * calculated as follows: <strong>f(x) = x * x * x * x</strong>
+		 * @see VolType
+		 */
 		EXP_X4 ( x -> (float)x * x * x * x),
+		/**
+		 * Represents an amplitude function with enhanced sensitivity to 
+		 * volume changes occurring in the upper numerical area between
+		 * <strong>0</strong> (<em>silent</em>) and <strong>1</strong> 
+		 * (<em>full volume</em>) The mapping function is 
+		 * calculated as follows: <strong>f(x) = x * x * x * x * x</strong>
+		 * @see VolType
+		 */
 		EXP_X5 ( x -> (float)x * x * x * x * x),
+		/**
+		 * Represents an amplitude function that best maps to the geometric
+		 * curve of human hearing, but at a higher computational cost than
+		 * EXP_X4. The mapping function is calculated as follows:<br>
+		 * <strong>f(x) = Math.exp(x * 6.908) / 1000.0</strong><br>
+		 * The input value of 0 is directly mapped to zero instead of using
+		 * the above function.
+		 * @see VolType
+		 * 
+		 */
 		EXP_60dB (x -> x == 0 ? 0 : (float)(Math.exp(x * 6.908) / 1000.0));
 		
 		final Function<Float, Float> vol;

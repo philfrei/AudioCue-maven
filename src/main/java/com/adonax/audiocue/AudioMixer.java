@@ -26,7 +26,7 @@ import javax.sound.sampled.SourceDataLine;
  * this {@code AudioMixer} is reopened.
  * <p>
  * Values used to configure the media output are provided in the 
- * constructor, and are held as immutables. These include a 
+ * constructor, and are held as immutable. These include a 
  * {@code javax.sound.sampled.Mixer} used to provide the 
  * {@code SourceDataLine}, the size of the buffer used for iterative
  * reads of the PCM data, and the thread priority. Multiple constructors
@@ -40,10 +40,10 @@ import javax.sound.sampled.SourceDataLine;
  * 
  * @see AudioMixerTrack
  */
-public class AudioMixer 
+public class AudioMixer implements AutoCloseable
 {
 	private AudioMixerTrack[] trackCache;  
-	private AudioMixerTrack[] mixerTracks;  
+ 
 	private CopyOnWriteArrayList<AudioMixerTrack> trackManager; 
 	private volatile boolean trackCacheUpdated;
 	private int trackCount;
@@ -79,7 +79,6 @@ public class AudioMixer
 	 */
 	public final int sdlByteBufferSize;
 
-	private float[] audioData;
 	private Mixer mixer;
 	
 	/**
@@ -234,47 +233,19 @@ public class AudioMixer
 		
 		mixerRunning = false;
 	}
-	
-    private float[] fillBufferFromTracks(float[] normalizedOut)
-	{	
-    	// loop through all tracks, summing	
-		for (int n = 0; n < trackCount; n++)	
-		{
-			if (mixerTracks[n].isTrackRunning())
-			{
-				try 
-				{
-					audioData = mixerTracks[n].readTrack();
-					for (int i = 0; i < readBufferSize; i++)
-					{
-						normalizedOut[i] += audioData[i];
-					}
-				} 
-				catch (Exception e) 
-				{
-					e.printStackTrace();
-				}							
-			}
-			for (int i = 0; i < readBufferSize; i++)
-			{
-				if (normalizedOut[i] > 1)
-				{
-					normalizedOut[i] = 1;
-				}
-				else if (normalizedOut[i] < -1)
-				{
-					normalizedOut[i] = -1;
-				}
-			}
-		}
-		return normalizedOut;
+
+	@Override
+	public void close() throws Exception {
+		stop();
 	}
-    
+	
 	private class AudioMixerPlayer implements Runnable
 	{
 		private SourceDataLine sdl;
 		private float[] readBuffer;
 		private byte[] audioBytes;
+		private AudioMixerTrack[] mixerTracks;
+		private float[] audioData;
 		
 		AudioMixerPlayer(Mixer mixer) throws LineUnavailableException
 		{
@@ -310,6 +281,41 @@ public class AudioMixer
 			sdl.drain();
 			sdl.close();
 			sdl = null;
+		}
+		
+	   private float[] fillBufferFromTracks(float[] normalizedOut)
+		{	
+	    	// loop through all tracks, summing	
+			for (int n = 0; n < trackCount; n++)	
+			{
+				if (mixerTracks[n].isTrackRunning())
+				{
+					try 
+					{
+						audioData = mixerTracks[n].readTrack();
+						for (int i = 0; i < readBufferSize; i++)
+						{
+							normalizedOut[i] += audioData[i];
+						}
+					} 
+					catch (Exception e) 
+					{
+						e.printStackTrace();
+					}							
+				}
+				for (int i = 0; i < readBufferSize; i++)
+				{
+					if (normalizedOut[i] > 1)
+					{
+						normalizedOut[i] = 1;
+					}
+					else if (normalizedOut[i] < -1)
+					{
+						normalizedOut[i] = -1;
+					}
+				}
+			}
+			return normalizedOut;
 		}
 	}
 }

@@ -24,12 +24,11 @@ import javax.sound.sampled.UnsupportedAudioFileException;
 
 /**
  * The {@code AudioCue} class functions as a data line, where the
- * audio data is loaded entirely into and played directly from 
- * memory. {@code AudioCue} is modeled upon 
- * {@code javax.sound.sampled.Clip} but with additional capabilities.
- * It can play multiple instances concurrently, and offers
- * individual, dynamic controls for volume, panning and speed for
- * each concurrently playing instance.
+ * audio data played directly from memory. {@code AudioCue} is modeled 
+ * upon {@code javax.sound.sampled.Clip} but with additional capabilities.
+ * It can play multiple instances concurrently, and offers individual
+ * dynamic controls for volume, panning and speed for each concurrently 
+ * playing instance.
  * <p>
  * An {@code AudioCue} is created using the static factory method
  * {@code makeAudioCue}. When doing so, the media data is loaded 
@@ -155,7 +154,7 @@ import javax.sound.sampled.UnsupportedAudioFileException;
  * @version 2.0.0
  * @author Philip Freihofner
  */
-public class AudioCue implements AudioMixerTrack
+public class AudioCue implements AudioMixerTrack, AutoCloseable
 {
 	/**
 	 * A {@code javax.sound.sampled.AudioFormat}, set to the only
@@ -259,6 +258,13 @@ public class AudioCue implements AudioMixerTrack
 			
 	private Function<Float, Float> vol;
 
+	/**
+	 * Assigns a function to map linear volume settings to volume
+	 * factors used to control the sound cue's amplitude.
+	 * 
+	 * @param volType - a member of the {@code enum AudioCue.VolType}
+	 * @see VolType
+	 */
 	public void setVolType(VolType volType)
 	{
 		vol = volType.vol;
@@ -410,12 +416,14 @@ public class AudioCue implements AudioMixerTrack
 				}
 			}
 		}
+		// Done with AudioInputStream
+		ais.close();
 		
 		for (int i = 0; i < temp.length; i++)
 		{
 			temp[i] = temp[i] / 32767f;
 		}
-		
+
 		return temp;
 	}
 	
