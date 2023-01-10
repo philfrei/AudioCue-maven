@@ -736,26 +736,25 @@ public class AudioCue implements AudioMixerTrack, AutoCloseable
 	}
 	
 	/**
-	 * Obtains an {@code AudioCue} instance and if the 
-	 * {@code AudioCue} has been <em>opened</em>, starts playing
-	 * from the beginning, with default values: full volume, 
-	 * center pan and at normal speed, and returns an {@code int}
-	 * identifying the instance, or, returns -1 if no 
-	 * {@code AudioCue} instance is available. 
+	 * Obtains an {@code AudioCue} instance and, if the {@code AudioCue} has 
+	 * been <em>opened</em>, starts the cue playing in its own thread, from 
+	 * the beginning, with default values: full volume, center pan and at 
+	 * normal speed, and immediately returns an {@code int} identifying the 
+	 * instance, or, returns -1 if no {@code AudioCue} instance is available.
 	 * <p>
 	 * If an {@code AudioCue} instance is available to play, the 
 	 * {@code AudioCueListener.instanceEventOccurred} method
-	 * will be called twice, with arguments
+	 * will be called twice, first with the argument
      * {@code AudioCueInstanceEvent.Type.OBTAIN_INSTANCE} and
-	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}. This
-	 * instance will be set to automatically recycle back into the 
-	 * pool of available instances when playing completes.
+	 * then with {@code AudioCueInstanceEvent.Type.START_INSTANCE}.
+	 * This instance will be set to automatically recycle back into 
+	 * the pool of available instances when playing completes.
 	 * <p>
 	 * NOTE: the {@code play} method <em>can</em> be called on an 
-	 * unopened {@code AudioCue}. If unopened, the 
+	 * unopened {@code AudioCue}. If unopened, calling the 
 	 * {@code AudioCuePlayer.readTrack} method will advance the 
-	 * {@code AudioCueCursor} and return a buffer of PCM data when 
-	 * called, but will not write the data to the sound system.
+	 * {@code AudioCueCursor} and return a buffer of PCM data, but
+	 * will not write the data to the sound system.
 	 * 
 	 * @return an {@code int} identifying the playing instance,
 	 *         or -1 if no instance is available
@@ -769,18 +768,18 @@ public class AudioCue implements AudioMixerTrack, AutoCloseable
 	}	
 	
 	/**
-	 * Obtains an {@code AudioCue} instance and if the 
-	 * {@code AudioCue} has been <em>opened</em>, starts playing 
-	 * from the beginning, at the given volume, at the default 
-	 * center pan, and at the default normal speed, and returns 
-	 * an {@code int} identifying the instance, or, returns
-	 * -1 if no {@code AudioCue} instance is available. 
+	 * Obtains an {@code AudioCue} instance and, if the {@code AudioCue} has 
+	 * been <em>opened</em>, starts the cue playing in its own thread, from 
+	 * the beginning, at the given volume, at the default center pan, and at 
+	 * the default normal speed, and immediately returns an {@code int} 
+	 * identifying the instance, or, returns -1 if no {@code AudioCue} instance
+	 * is available. 
 	 * <p>
 	 * If an {@code AudioCue} instance is available to play, the 
 	 * {@code AudioCueListener.instanceEventOccurred} method 
-	 * will be called twice, with arguments
-     * {@code AudioCueInstanceEvent.Type.OBTAIN_INSTANCE} and
-	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}. This
+	 * will be called twice, first with the argument
+     * {@code AudioCueInstanceEvent.Type.OBTAIN_INSTANCE} and then
+	 * with {@code AudioCueInstanceEvent.Type.START_INSTANCE}. This
 	 * instance will be set to automatically recycle back into the 
 	 * pool of available instances when playing completes.
 	 * <p>
@@ -803,18 +802,17 @@ public class AudioCue implements AudioMixerTrack, AutoCloseable
 	}	
 	
 	/**
-	 * Obtains an {@code AudioCue} instance and if the 
-	 * {@code AudioCue} has been <em>opened</em>, starts playing 
-	 * from the beginning, at the given volume, pan, speed and 
-	 * number of repetitions, and returns an {@code int} identifying 
-	 * the instance, or, returns -1 if no {@code AudioCue} instance 
-	 * is available.
+	 * Obtains an {@code AudioCue} instance and, if the {@code AudioCue} has 
+	 * been <em>opened</em>, starts the cue playing in its own thread, from 
+	 * the beginning, at the given volume, pan, speed and number of repetitions, 
+	 * and returns an {@code int} identifying the instance, or, returns -1 if 
+	 * no {@code AudioCue} instance is available.
 	 * <p>
 	 * If an {@code AudioCue} instance is available for play back, 
 	 * the {@code AudioCueListener.instanceEventOccurred} method 
-	 * will be called twice, with arguments
-     * {@code AudioCueInstanceEvent.Type.OBTAIN_INSTANCE} and
-	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}. This
+	 * will be called twice, first with the argument
+     * {@code AudioCueInstanceEvent.Type.OBTAIN_INSTANCE} and then
+	 * with {@code AudioCueInstanceEvent.Type.START_INSTANCE}. This
 	 * instance will be set to automatically recycle back into the 
 	 * pool of available instances when playing completes.
 	 * <p>
@@ -857,17 +855,24 @@ public class AudioCue implements AudioMixerTrack, AutoCloseable
 	}
 	
 	/**
-	 * Plays the specified {@code AudioCue} instance from its current 
-	 * position in the data, using existing volume, pan, and speed 
-	 * settings.
+	 * Launches the playback of the specified {@code AudioCue} instance
+	 * from its current position in the data, using existing volume, pan, 
+	 * speed and number of repetitions. Returns immediately.
 	 * <p>
 	 * If an {@code AudioCue} instance is able to start, the 
 	 * {@code AudioCueListener.instanceEventOccurred} method 
-	 * will be called with the argument
-	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}.
+	 * will be ca	lled with the argument
+	 * {@code AudioCueInstanceEvent.Type.START_INSTANCE}. When the
+	 * playback ends, the {@code AudioCue} instance is <em>not</em>
+	 * recycled, but instead stops running and the current position
+	 * remains at the end point of the playback. This method does
+	 * <em>not</em> automatically reposition the cursor to the 
+	 * beginning of the cue, so, if the goal is to restart from the 
+	 * beginning, a repositioning method (such as 
+	 * {@code setFramePosition} must first be used to move the cursor.
 	 * <p>
-	 * If the {@code AudioCue} has not been opened, calls to
-	 * {@code AudioMixerTrack.readTrack()} can be used to advance 
+	 * If the {@code AudioCue} has not been <em>opened</em>, calls
+	 * to {@code AudioMixerTrack.readTrack()} can be used to advance 
 	 * the cursors and produce a buffer-length float[] array of the
 	 * mix of all the playing instances without sending the data on
 	 * to a {@code SourceDataLine} to be heard. 
@@ -898,11 +903,15 @@ public class AudioCue implements AudioMixerTrack, AutoCloseable
 	 * Sends message to indicate that the playing of the instance
 	 * associated with the {@code int} identifier should be halted.
 	 * Calling this method on an already stopped instance does 
-	 * nothing. The instance is left in an open state.
+	 * nothing. The instance is left in an open state and is 
+	 * <em>not</em> recycled back into the pool of available 
+	 * instances.
 	 * <p>
 	 * The {@code AudioCueListener.instanceEventOccurred} method
 	 * will be called with the argument
-	 * {@code AudioCueInstanceEvent.Type.STOP_INSTANCE}.
+	 * {@code AudioCueInstanceEvent.Type.STOP_INSTANCE}. When the
+	 * {@code start} method is called on an instance that has been
+	 * stopped, playback begins from the stopped cursor location.
 	 * 
 	 * @param instanceID - an {@code int} used to identify an 
 	 *                     {@code AudioCue} instance
@@ -925,7 +934,11 @@ public class AudioCue implements AudioMixerTrack, AutoCloseable
 	/**
 	 * Returns the current sample frame number. The frame count
 	 * is zero-based. The position may lie in between two frames.
-	 * 
+	 * <p>
+	 * An instance cannot have its position read if it is
+	 * currently playing. An attempt to do so will throw an
+	 * {@code IllegalStateException}.
+	 *  
 	 * @param instanceID - an {@code int} used to identify an 
 	 *                     {@code AudioCue} instance
 	 * @return a {@code double} corresponding to the current 
@@ -953,7 +966,7 @@ public class AudioCue implements AudioMixerTrack, AutoCloseable
 	 * between two frames.
 	 * <p>
 	 * The input frame position will be clamped to a value that 
-	 * lies within or at the start or end of the media data. When 
+	 * lies at or within the start and end of the media data. When 
 	 * the instance is next started, it will commence from this 
 	 * position.
 	 * <p>
