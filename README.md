@@ -5,17 +5,16 @@ enhanced with concurrent playback capabilities and with dynamic handling of volu
 pan and frequency. Included in the library is an audio mixing tool for merging the output
 of multiple *AudioCues* into a single line out.
 
-This *AudioCue* project available through [Maven Central](https://search.maven.org/search?q=audiocue).
-A [previous version](https://github.com/philfrei/AudioCue) of this project exists but is
-no longer supported. While updating the original project to conform to Maven's 
-publication standards, the additional unit tests and a more rigorous API uncovered 
-several errors and shortcomings. The changes were extensive enough that this project is 
-being started as version 2.0.0.
+The project is now [published on *Maven Central*](https://search.maven.org/artifact/com.adonax/audiocue/2.0.0/jar).
+Unit tests have been added, and more rigorous API documentation has been written. Over the course of making these changes, some errors 
+and shortcomings were uncovered and have been corrected. The changes are extensive enough that this project 
+will have a starting release version of 2.0.0. The [previous version](https://github.com/philfrei/AudioCue)
+will no longer be maintained. 
 
-## Usage
-To bring in *AudioCue* as a Maven dependency, add the following to your project's POM 
-file. There may a more current version available.
+The best way to make use of the **AudioCue** class is use the Maven build tool, and list *AudioCue* as a
+dependency. To use *AudioCue* as a Maven dependency, add the following to your project's POM file.
 
+```xml
     <dependencies>  
         <dependency>
             <groupId>com.adonax</groupId>
@@ -23,6 +22,16 @@ file. There may a more current version available.
             <version>2.0.0</version>
         </dependency>
     </dependencies>
+```
+
+When used in this way, source code and Javadocs documentation will automatically be linked.
+
+Another option is to fork this project and clone it to a development environment. From there, executing 
+Maven's *install* command will put the library into the local Maven repository. Or, you can directly make 
+use of the jar file that is created in the **/target** subdirectory via the *package* command by adding 
+this jar file to your project's classpath. Also, since there are only a few files, you can consider 
+simply copying these files directly into your project. Just be sure, if you do, to edit the *package* 
+lines of the files to appropriately reflect their new file locations.
 
 The library jar, as well as source and documentation jars are publicly available at
 the Maven site for downloading if you do not wish to use Maven as the build tool.
@@ -39,7 +48,9 @@ the files to appropriately reflect the new file locations.
 
 ### Basic playback (for "fire-and-forget" use)
 
-    // Recommended: define the AudioCue as an instance variable.
+
+```java
+    // Recommended: define as an instance variable.
     AudioCue myAudioCue; 
 
     // Recommended: preload one time only.
@@ -60,6 +71,7 @@ the files to appropriately reflect the new file locations.
 
     // To release resources when sound is no longer needed
     myAudioCue.close();
+```
 
 The following example plays an *AudioCue* via a Swing Button.
 
@@ -122,26 +134,31 @@ instances as follows:
 An *instance* can be started, stopped, or released by including the instance identifier 
 as an argument:
 
+
+```java
     myAudioCue.start(instanceID);
     myAudioCue.stop(instanceID);
     myAudioCue.releaseInstance(instanceID);
+```
 
 *Releasing* returns the instance identifier to the pool of available instances.
-  
-An important distinction exists between instances obtained from a `play` method 
-versus the `obtainInstance()` method. When playback completes after a `play` method 
-call, the *instance* is automatically returned to the pool of available instances. 
-An instance obtained via the `obtainInstance` method that is stopped or plays to
-completion remains available for replaying. If you wish to replay the *instance* from
-the beginning, the cursor must be repositioned to the start of the file before 
-calling the `start` method.
 
-The property `recycleWhenDone` controls whether or not an instance is returned to
-the pool of available instances when a sound plays to completion. It is set to `true`
-by the `play` method and `false` by the `obtainInstance` method.
+An important distinction exists between instances obtained from one of the 
+`play` methods versus the `obtainInstance()` method.
+The default value of the property `recycleWhenDone` for an instance 
+obtained from `play()` is `true`. Thus, when playback completes, the
+identifier will be returned to the pool of available instances.
+An instance arising from `obtainInstance()` has the property `recycleWhenDone`
+set to `false`. In this case, when playback completes, the instance identifier
+is *not* returned to the pool of available instances, and the instance remains 
+receptive to additional commands. In this case, after playing through to the
+end, the frame position will be set to the end of the audio-data file, and,
+like a `Clip` that has played through, will require repositioning and restarting
+for further plays.
 
 Properties that can be altered for an instance include the following:
 
+```java
     //*volume*: 
     myAudioCue.setVolume(instanceID, value); // double ranging from 0 (silent)
                                              // to 1 (full volume)
@@ -166,10 +183,11 @@ Properties that can be altered for an instance include the following:
                                         // not the instance will be returned to the
                                         // pool of available instances when the cue
                                         // plays to completion                                
+```
 
 ### Usage: output configuration
 
-Output configuration occurs with the *AudioCue*'s `open()` method. The 
+Output configuration occurs within the *AudioCue*'s `open` methods. The 
 default configuration employs *javax.sound.sampled.AudioSystem*'s default
 `Mixer` and a `SourceDataLine` set with a 1024-frame buffer and the highest
 thread priority. A high thread priority should not affect performance of 
@@ -181,24 +199,31 @@ are usually lessened by increasing the buffer size.
 You can override the defaults by using an alternate form of the `open()` method. For 
 example:
 
+```java
     myAudioCue.open(mixer, bufferFrames, threadPriority);
+```
 
-Each *AudioCue* can have its own configuration, and will output on its own 
-`SourceDataLine` line.  
+Each `AudioCue` can have its own configuration, and will output on its own `SourceDataLine` line.  
 
 ### Usage: Outputting via *AudioMixer*
 Most operating systems will support multiple, concurrently playing `SourceDataLine` 
 streams. But if desired, the streams can be merged into a single output line using 
-*AudioMixer*, which is part of this package. This is accomplished by providing an 
-*AudioMixer* instance as an argument to the *AudioCue* **open()** method: 
+`AudioMixer`, which is part of this package. This is accomplished by providing an 
+`AudioMixer` instance as an argument to the `AudioCue` **open()** method: 
 
+```java
     myAudioCue.open(myAudioMixer);
-    
+```
+
 Internally, this method adds the `AudioCue` to the `AudioMixer` using the interface 
-*AudioMixerTrack*. If an `AudioCue` is a track on an `AudioMixer`, the *AudioCue* 
+*AudioMixerTrack*. If an `AudioCue` is a track on an `AudioMixer`, the `AudioCue` 
 method **close()** will automatically remove the track from the `AudioMixer`.
 
-The *AudioMixer* is configured, upon instantiation, with a default 
+```java
+    myAudioCue.close();
+```
+
+The `AudioMixer` is configured, upon instantiation, with a default 
 `javax.sound.sampled.Mixer`, with a buffer size of 8192 frames, and 
 with the highest thread priority. Alternate values can be provided 
 at instantiation.
@@ -211,6 +236,7 @@ iteration.
 In the following somewhat artificial example, we create and start an 
 `AudioMixer`, add an `AudioCue` track, play the cue, then shut it all down.
 
+```java
     AudioMixer audioMixer = new AudioMixer();
     audioMixer.start();
     // At this point, AudioMixer will create and start a runnable and will
@@ -228,6 +254,7 @@ In the following somewhat artificial example, we create and start an
     myAudioCue.close(); // will remove AudioCue from the mix                    
     audioMixer.stop();  // AudioMixer will stop outputting and will
                         // close the runnable in an 'orderly' manner.
+```
 
 Reminder, this is an artificial example: best practice is to initialize and 
 open an `AudioCue` only once, and to then reuse the `AudioCue` for multiple playbacks.
