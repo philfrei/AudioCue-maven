@@ -36,23 +36,15 @@ lines of the files to appropriately reflect their new file locations.
 The library jar, as well as source and documentation jars are publicly available at
 the Maven site for downloading if you do not wish to use Maven as the build tool.
 
-Another way to make use of **AudioCue** would be to fork this project and clone it 
-to your development environment. From there, executing Maven's *install* command
-will put the library into your local Maven repository. Or, from the cloned project you 
-can generate a jar in the **/target** subdirectory via Maven's *package* command, and 
-copy/paste this jar file to your project's classpath. 
-
-Lastly, since there are only a few files, you can consider simply copying these files 
-directly into your project. Just be sure, if you do this, to edit the *package* lines of 
-the files to appropriately reflect the new file locations.
-
 ### Basic playback (for "fire-and-forget" use)
 
+Code fragments:
 
 ```java
     // Recommended: define as an instance variable.
     AudioCue myAudioCue; 
 
+//////
     // Recommended: preload one time only.
     // This example assumes "myAudio.wav" is located in src/main/resources folder
     // of a Maven project.    
@@ -61,6 +53,7 @@ the files to appropriately reflect the new file locations.
     AudioCue myAudioCue = AudioCue.makeStereoCue(url, 4); 
     myAudioCue.open();
 
+//////
     // Recommended: the play() method should be called on a preloaded 
     // instance variable. Reloading or reopening prior for successive plays
     // will add processing latency to no practical purpose.
@@ -69,6 +62,7 @@ the files to appropriately reflect the new file locations.
     // NOTE: The play method returns immediately. Playback occurs on a
     // daemon thread, and will not hold a program open. 
 
+//////
     // To release resources when sound is no longer needed
     myAudioCue.close();
 ```
@@ -146,13 +140,14 @@ as an argument:
 An important distinction exists between instances obtained from one of the 
 `play` methods versus the `obtainInstance()` method.
 The default value of the property `recycleWhenDone` for an instance 
-obtained from `play()` is `true`. Thus, when playback completes, the
-identifier will be returned to the pool of available instances.
+obtained from `play()` is `true`. Thus, when playback completes, the instance
+and its identifier will be returned to the pool of available instances.
+
 An instance arising from `obtainInstance()` has the property `recycleWhenDone`
 set to `false`. In this case, when playback completes, the instance identifier
 is *not* returned to the pool of available instances, and the instance remains 
 receptive to additional commands. In this case, after playing through to the
-end, the frame position will be set to the end of the audio-data file, and,
+end, the frame position will be that of the end of the audio-data file, and,
 like a `Clip` that has played through, will require repositioning and restarting
 for further plays.
 
@@ -205,11 +200,11 @@ example:
 
 Each `AudioCue` can have its own configuration, and will output on its own `SourceDataLine` line.  
 
-### Usage: Outputting via *AudioMixer*
+### Usage: outputting via *AudioMixer*
 Most operating systems will support multiple, concurrently playing `SourceDataLine` 
 streams. But if desired, the streams can be merged into a single output line using 
-`AudioMixer`, which is part of this package. This is accomplished by providing an 
-`AudioMixer` instance as an argument to the `AudioCue` **open()** method: 
+`audiocue.AudioMixer`. This is accomplished by 
+providing an `AudioMixer` instance as an argument to the `AudioCue` **open()** method: 
 
 ```java
     myAudioCue.open(myAudioMixer);
@@ -229,9 +224,9 @@ with the highest thread priority. Alternate values can be provided
 at instantiation.
 
 Any `AudioCue` routed through an `AudioMixer` will use the 
-*AudioMixer*'s configuration properties. Pending `AudioMixer`
-additions and removals are handled automatically, once per buffer 
-iteration.
+*AudioMixer*'s configuration properties. Requests to add or remove `AudioCues` 
+from the `AudioMixer` are concurrency safe but with a latency equal to the time
+that elapses until the buffer iterates.
 
 In the following somewhat artificial example, we create and start an 
 `AudioMixer`, add an `AudioCue` track, play the cue, then shut it all down.
