@@ -24,7 +24,7 @@ import java.io.IOException;
  * writes can be set to resume by setting the state to running.
  * 
  * @since 2.0.0
- * @version 2.0.0
+ * @version 2.1.0
  * @author Philip Freihofner
  * 
  * @see AudioMixer

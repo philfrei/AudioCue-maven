@@ -12,7 +12,7 @@ package com.adonax.audiocue;
  * could potentially contribute to latency during media play. 
  * 
  * @since 2.0.0
- * @version AudioCue 2.0.0
+ * @version AudioCue 2.1.0
  * @author Philip Freihofner
  * 
  * @see #audioCueOpened(long, int, int, AudioCue)

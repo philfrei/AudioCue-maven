@@ -151,7 +151,7 @@ import javax.sound.sampled.UnsupportedAudioFileException;
  * <em>audiocue-demo</em>.   
  * 
  * @since 2.0.0
- * @version 2.0.0
+ * @version 2.1.0
  * @author Philip Freihofner
  */
 public class AudioCue implements AudioMixerTrack, AutoCloseable

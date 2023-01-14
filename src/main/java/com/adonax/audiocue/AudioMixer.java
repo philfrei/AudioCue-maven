@@ -35,7 +35,7 @@ import javax.sound.sampled.SourceDataLine;
  * tracks. 
  * 
  * @since 2.0.0
- * @version 2.0.0
+ * @version 2.1.0
  * @author Philip Freihofner
  * 
  * @see AudioMixerTrack
