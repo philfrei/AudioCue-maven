@@ -69,17 +69,18 @@ Code fragments:
 
 The following example plays an *AudioCue* via a Swing Button.
 
+```java
 	public class AudioCuePlayExample {
 		public static void main(String[] args) {
-		    EventQueue.invokeLater(new Runnable(){
-		    	public void run()
-		    	{	
-		    		DemoFrame frame = new DemoFrame();
-		    		frame.pack;
-		    		frame.setVisible(true);
-	    		}
-	    	});
-		}	
+			EventQueue.invokeLater(new Runnable(){
+				public void run()
+				{	
+					DemoFrame frame = new DemoFrame();
+					frame.pack;
+					frame.setVisible(true);
+				}
+			});
+		}
 	}
     
 	class DemoFrame extends JFrame {
@@ -105,7 +106,7 @@ The following example plays an *AudioCue* via a Swing Button.
 			}
 		}
 	}
-
+```
 
 
 
