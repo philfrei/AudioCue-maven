@@ -11,7 +11,9 @@ and shortcomings were uncovered and have been corrected. The changes are extensi
 will have a starting release version of 2.0.0. The [previous version](https://github.com/philfrei/AudioCue)
 will no longer be maintained. 
 
-The best way to make use of the **AudioCue** class is use the Maven build tool, and list *AudioCue* as a
+### How to add AudioCue to your Java project
+
+The best way to make use of **AudioCue** is with the Maven build tool, listing *AudioCue* as a
 dependency. To use *AudioCue* as a Maven dependency, add the following to your project's POM file.
 
 ```xml
@@ -26,12 +28,12 @@ dependency. To use *AudioCue* as a Maven dependency, add the following to your p
 
 When used in this way, source code and Javadocs documentation will automatically be linked.
 
-Another option is to fork this project and clone it to a development environment. From there, executing 
-Maven's *install* command will put the library into the local Maven repository. Or, you can directly make 
-use of the jar file that is created in the **/target** subdirectory via the *package* command by adding 
-this jar file to your project's classpath. Also, since there are only a few files, you can consider 
-simply copying these files directly into your project. Just be sure, if you do, to edit the *package* 
-lines of the files to appropriately reflect their new file locations.
+Another option is to fork this project and clone it to your local development environment. From there, 
+executing Maven's *install* command will put the library into your local Maven repository. Alternatively, 
+you can directly make use of the jar file that is created in the **/target** subdirectory via the 
+*package* command by adding this jar file to your project's classpath. Lastly, since there are only a few 
+files, you can simply copy these files directly into your project. Just be sure, if you do, to edit the
+*package* lines of the files to appropriately reflect their new file locations.
 
 The library jar, as well as source and documentation jars are publicly available at
 the Maven site for downloading if you do not wish to use Maven as the build tool.
@@ -115,13 +117,13 @@ The following example plays an *AudioCue* via a Swing Button.
 
 To dynamically change the playback of a sound, we need to identify
 the playback *instance*. Each playback instance has its own identifier,
-an `int` ranging from 0 to the number of  concurrent instances minus one.
+an `int` ranging from 0 to the number of preallocated concurrent instances minus one.
 Identifiers are obtained from a pool of available instances. An instance is reserved
-and its identifier is returned when the play method is executed:
+and its identifier is returned when the *play* method is executed:
 
     int instanceID = myAudioCue.play(); 
 
-One can also reserve an *instance* and obtain its identifier from the pool of available 
+You can also reserve an *instance* and obtain its identifier from the pool of available 
 instances as follows:
 
     int instanceID = myAudioCue.obtainInstance(); 
@@ -142,7 +144,7 @@ An important distinction exists between instances obtained from one of the
 `play` methods versus the `obtainInstance()` method.
 The default value of the property `recycleWhenDone` for an instance 
 obtained from `play()` is `true`. Thus, when playback completes, the instance
-and its identifier will be returned to the pool of available instances.
+and its identifier will automatically be returned to the pool of available instances.
 
 An instance arising from `obtainInstance()` has the property `recycleWhenDone`
 set to `false`. In this case, when playback completes, the instance identifier
@@ -224,8 +226,8 @@ The `AudioMixer` is configured, upon instantiation, with a default
 with the highest thread priority. Alternate values can be provided 
 at instantiation.
 
-Any `AudioCue` routed through an `AudioMixer` will use the 
-*AudioMixer*'s configuration properties. Requests to add or remove `AudioCues` 
+All `AudioCues` routed through an `AudioMixer` will use the 
+`AudioMixer's` configuration properties. Requests to add or remove `AudioCues` 
 from the `AudioMixer` are concurrency safe but with a latency equal to the time
 that elapses until the buffer iterates.
 
@@ -255,16 +257,29 @@ In the following somewhat artificial example, we create and start an
 Reminder, this is an artificial example: best practice is to initialize and 
 open an `AudioCue` only once, and to then reuse the `AudioCue` for multiple playbacks.
 Also, this example uses `Thread.sleep()` to prevent the program from advancing and 
-closing before the cue finishes playing. The reason for this is that `AudioCue` launches
-a *daemon* thread internally for playback, so a playing instance will *not* prevent a 
-program from closing once all the program instructions are completed. Unlike this example, 
-an `AudioCue` is more typically called by a GUI that remains open, or from a long-running
+closing before the cue finishes playing. The reason for this is that `AudioMixer`, like 
+`AudioCue`, launches a *daemon* thread internally for playback, so a playing instance will 
+*not* prevent a program from closing once all the program instructions are completed. Unlike this 
+example, an `AudioCue` is more typically called by a GUI that remains open, or from a long-running
 program, and is able to complete playing without the program closing. In this more common 
 use case, pausing the thread that has the *play()* method is quite unnecessary.  
 
-### Usage: Additional examples and test files
-Additional examples and test files can be found in the accompanying project 
-[audiocue-demo](https://github.com/philfrei/audiocue-demo).
+### Additional functionality and examples
+Additional examples and test files for the obsolete version of *AudioCue* can be found in the
+accompanying project [audiocue-demo](https://github.com/philfrei/audiocue-demo). However, *this 
+code is not entirely compatible with version 2.0.0 and beyond*, and in some cases will require 
+tinkering in order to work.
+
+A new *examples* project has been written but has not yet been posted, and a series of tutorial 
+videos have been scripted but not yet recorded. Watch this space--I will post links here when
+the material is ready.
+
+Functionality that will be illustrated includes the following:
+- the real time response of an `AudioCue` to `JSlider`-driven changes to volume, panning and pitch;
+- the mixing of multiple `Audiocues` in an `AudioMixer`, creating an aleatory soundscape; 
+- the utilization of `AudioCue` *Listeners*, including an example where an animation reacts to the beginning and the completion of a playback;
+- the loading of an `AudioCue` directly with PCM data and other PCM-related utilities.
+
 
 ## Contribute to project
 Please check the *Issues* area for entering or working on suggestions.
