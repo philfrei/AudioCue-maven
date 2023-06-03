@@ -5,11 +5,10 @@ enhanced with concurrent playback capabilities and with dynamic handling of volu
 pan and frequency. Included in the library is an audio mixing tool for merging the output
 of multiple *AudioCues* into a single line out.
 
-The project is now [published on *Maven Central*](https://search.maven.org/artifact/com.adonax/audiocue/2.0.0/jar).
-Unit tests have been added, and more rigorous API documentation has been written. Over the course of making these changes, some errors 
-and shortcomings were uncovered and have been corrected. The changes are extensive enough that this project 
-will have a starting release version of 2.0.0. The [previous version](https://github.com/philfrei/AudioCue)
-will no longer be maintained. 
+The project is now [published and available on Maven.org](https://search.maven.org/artifact/com.adonax/audiocue).
+Starting from an earlier project, unit tests were added, and a more rigorous API documentation written. Over the course of making those changes, some errors and shortcomings were uncovered and corrected. The changes were extensive enough that this project 
+was given a starting release version of 2.0.0. The [previous version](https://github.com/philfrei/AudioCue)
+is no longer being maintained. The current Maven version (as of June, 2023) is 2.1.0.  
 
 ### How to add AudioCue to your Java project
 
@@ -21,7 +20,7 @@ dependency. To use *AudioCue* as a Maven dependency, add the following to your p
         <dependency>
             <groupId>com.adonax</groupId>
             <artifactId>audiocue</artifactId>
-            <version>2.0.0</version>
+            <version>2.1.0</version>
         </dependency>
     </dependencies>
 ```
@@ -35,8 +34,8 @@ you can directly make use of the jar file that is created in the **/target** sub
 files, you can simply copy these files directly into your project. Just be sure, if you do, to edit the
 *package* lines of the files to appropriately reflect their new file locations.
 
-The library jar, as well as source and documentation jars are publicly available at
-the Maven site for downloading if you do not wish to use Maven as the build tool.
+The library jar, as well as source and documentation jars are [publicly available at
+the Maven site](https://repo1.maven.org/maven2/com/adonax/audiocue/2.1.0/) for downloading if you do not wish to use Maven as the build tool.
 
 ### Basic playback (for "fire-and-forget" use)
 
@@ -270,15 +269,17 @@ accompanying project [audiocue-demo](https://github.com/philfrei/audiocue-demo).
 code is not entirely compatible with version 2.0.0 and beyond*, and in some cases will require 
 tinkering in order to work.
 
-A new *examples* project has been written but has not yet been posted, and a series of tutorial 
-videos have been scripted but not yet recorded. Watch this space--I will post links here when
+A new *tutorial examples* project has been written but has not yet been finalized and posted, and, a
+series of videos has been scripted but not yet recorded. Watch this space--I will post links here when
 the material is ready.
 
-Functionality that will be illustrated includes the following:
+Functionality to be illustrated includes the following:
 - the real time response of an `AudioCue` to `JSlider`-driven changes to volume, panning and pitch;
+- the use of scaling functions for enhanced control of volume and panning;
 - the mixing of multiple `Audiocues` in an `AudioMixer`, creating an aleatory soundscape; 
 - the utilization of `AudioCue` *Listeners*, including an example where an animation reacts to the beginning and the completion of a playback;
-- the loading of an `AudioCue` directly with PCM data and other PCM-related utilities.
+- the loading of an `AudioCue` directly with PCM data and other PCM-related utilities;
+- the playback of a sound cue from a file rather than an `AudioCue` in the `AudioMixer` via implementation of `AudioMixerTrack` interface.
 
 
 ## Contribute to project
@@ -305,4 +306,7 @@ Email: phil AT adonax.com
 If using *StackOverflow* for a question, chances are highest
 that I will see it if you include the tag *javasound*.
 
-I'm happy to list links to applications that use *AudioCue*.
+I'm happy to list links for any applications that use *AudioCue*.
+
+Suggestions for the improvement of this README or any other aspect of the `AudioCue` are
+appreciated.
