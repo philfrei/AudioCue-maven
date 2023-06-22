@@ -264,22 +264,18 @@ program, and is able to complete playing without the program closing. In this mo
 use case, pausing the thread that has the *play()* method is quite unnecessary.  
 
 ### Additional functionality and examples
-Additional examples and test files for the obsolete version of *AudioCue* can be found in the
-accompanying project [audiocue-demo](https://github.com/philfrei/audiocue-demo). However, *this 
-code is not entirely compatible with version 2.0.0 and beyond*, and in some cases will require 
-tinkering in order to work.
+Additional examples and test files for *AudioCue* are available in the project [audiocue-tutorial-examples](https://github.com/philfrei/audiocue-tutorial-examples). I have a series of tutorial videos in the works which will feature the programs in this project. As they are completed (assuming I'm able to do this) links will be posted here.
 
-A new *tutorial examples* project has been written but has not yet been finalized and posted, and, a
-series of videos has been scripted but not yet recorded. Watch this space--I will post links here when
-the material is ready.
+There is another accompanying project [audiocue-demo](https://github.com/philfrei/audiocue-demo). However, *this code is not entirely compatible with version 2.0.0 and beyond*, and in some cases will require tinkering in order to work. This project is now obsolete, and is not being maintained.
 
-Functionality to be illustrated includes the following:
+Functionality illustrated in *audiocue-tutorial-examples* includes the following:
+- a working basic example of fire-and-forget play;
 - the real time response of an `AudioCue` to `JSlider`-driven changes to volume, panning and pitch;
 - the use of scaling functions for enhanced control of volume and panning;
+- the utilization of `AudioCueListener`, with an example where an animation reacts to the start and the completion of a playback;
 - the mixing of multiple `Audiocues` in an `AudioMixer`, creating an aleatory soundscape; 
-- the utilization of `AudioCue` *Listeners*, including an example where an animation reacts to the beginning and the completion of a playback;
 - the loading of an `AudioCue` directly with PCM data and other PCM-related utilities;
-- the playback of a sound cue from a file rather than an `AudioCue` in the `AudioMixer` via implementation of `AudioMixerTrack` interface.
+- the playback of a sound cue from a file rather than an `AudioCue` in the `AudioMixer` by implementing the `AudioMixerTrack` interface.
 
 
 ## Contribute to project
